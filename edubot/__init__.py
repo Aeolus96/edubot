@@ -1,0 +1,3 @@
+"""
+EduBot Description Package initialization
+"""

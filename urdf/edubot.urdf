@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot
+    name="edubot">
+
+    <link
+        name="base_footprint">
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/base_footprint.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="1 1 1 0.2" />
+            </material>
+        </visual>
+        <collision>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/base_footprint.STL" />
+            </geometry>
+        </collision>
+    </link>
+
+    <link
+        name="base_link">
+        <inertial>
+            <origin
+                xyz="-0.10802 0.0012256 0.12645"
+                rpy="0 0 0" />
+            <mass
+                value="4.3773" />
+            <inertia
+                ixx="0.029669"
+                ixy="-4.7962E-06"
+                ixz="-3.3935E-07"
+                iyy="0.015653"
+                iyz="-4.7932E-06"
+                izz="0.043804" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/base_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.5 0.5 0.5 1" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="base_footprint_to_base_link"
+        type="fixed">
+        <origin
+            xyz="0.11 0 0.0508"
+            rpy="0 0 0" />
+        <parent
+            link="base_footprint" />
+        <child
+            link="base_link" />
+        <axis
+            xyz="0 0 0" />
+    </joint>
+
+    <link
+        name="left_wheel_link">
+        <inertial>
+            <origin
+                xyz="-1.173E-16 4.5594E-14 1.249E-15"
+                rpy="0 0 0" />
+            <mass
+                value="0.12617" />
+            <inertia
+                ixx="0.00011003"
+                ixy="-3.6189E-23"
+                ixz="7.3178E-20"
+                iyy="0.00011003"
+                iyz="2.6942E-19"
+                izz="0.00021019" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/left_wheel_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.4 0 0 1" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="left_wheel_joint"
+        type="continuous">
+        <origin
+            xyz="0 0.14318 0"
+            rpy="1.5708 0 0" />
+        <parent
+            link="base_link" />
+        <child
+            link="left_wheel_link" />
+        <axis
+            xyz="0 0 -1" />
+        <limit
+            effort="5"
+            velocity="4" />
+        <dynamics
+            damping="0.1"
+            friction="0.1" />
+    </joint>
+
+    <link
+        name="right_wheel_link">
+        <inertial>
+            <origin
+                xyz="-1.1645E-16 4.5594E-14 -1.2768E-15"
+                rpy="0 0 0" />
+            <mass
+                value="0.12617" />
+            <inertia
+                ixx="0.00011003"
+                ixy="3.7999E-22"
+                ixz="-2.4127E-20"
+                iyy="0.00011003"
+                iyz="-2.907E-19"
+                izz="0.00021019" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/right_wheel_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.4 0 0 1" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="right_wheel_joint"
+        type="continuous">
+        <origin
+            xyz="0 -0.14318 0"
+            rpy="1.5708 0 0" />
+        <parent
+            link="base_link" />
+        <child
+            link="right_wheel_link" />
+        <axis
+            xyz="0 0 1" />
+        <limit
+            effort="5"
+            velocity="4" />
+        <dynamics
+            damping="0.1"
+            friction="0.1" />
+    </joint>
+
+    <link
+        name="caster_sphere_link">
+        <inertial>
+            <origin
+                xyz="1.2021E-17 0 2.7756E-17"
+                rpy="0 0 0" />
+            <mass
+                value="0.7676" />
+            <inertia
+                ixx="0.00099058"
+                ixy="0"
+                ixz="1.7632E-35"
+                iyy="0.00099058"
+                iyz="0"
+                izz="0.00099058" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/caster_sphere_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.3 0 0 0.4" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="caster_sphere_joint"
+        type="fixed">
+        <origin
+            xyz="-0.21791 0 0.006"
+            rpy="1.5708 0 1.5708" />
+        <parent
+            link="base_link" />
+        <child
+            link="caster_sphere_link" />
+        <axis
+            xyz="0 0 -1" />
+    </joint>
+
+    <link
+        name="lidar_link">
+        <inertial>
+            <origin
+                xyz="-0.010595 1.1877E-07 -0.014878"
+                rpy="0 0 0" />
+            <mass
+                value="0.22026" />
+            <inertia
+                ixx="0.00014659"
+                ixy="1.0374E-09"
+                ixz="-9.1899E-06"
+                iyy="0.00018215"
+                iyz="2.0782E-10"
+                izz="0.00030242" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/lidar_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.05 0.05 0.05 1" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="lidar_joint"
+        type="fixed">
+        <origin
+            xyz="0.00034222 0 0.2401"
+            rpy="0 0 0" />
+        <parent
+            link="base_link" />
+        <child
+            link="lidar_link" />
+        <axis
+            xyz="0 0 0" />
+    </joint>
+
+    <link
+        name="camera_link">
+        <inertial>
+            <origin
+                xyz="-9.8891E-10 -1.0917E-10 0.00080356"
+                rpy="0 0 0" />
+            <mass
+                value="0.047333" />
+            <inertia
+                ixx="4.1421E-06"
+                ixy="-7.853E-13"
+                ixz="4.8356E-13"
+                iyy="3.9805E-05"
+                iyz="5.5377E-14"
+                izz="4.136E-05" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/camera_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.05 0.05 0.05 1" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="camera_joint"
+        type="fixed">
+        <origin
+            xyz="0.031446 0 0.17538"
+            rpy="-2.2747 0 -1.5708" />
+        <parent
+            link="base_link" />
+        <child
+            link="camera_link" />
+        <axis
+            xyz="0 0 0" />
+    </joint>
+
+    <link
+        name="imu_link">
+        <inertial>
+            <origin
+                xyz="-7.4342E-07 -0.0075587 -0.00038469"
+                rpy="0 0 0" />
+            <mass
+                value="0.020793" />
+            <inertia
+                ixx="1.2421E-05"
+                ixy="1.092E-11"
+                ixz="1.0489E-15"
+                iyy="2.372E-06"
+                iyz="3.6838E-08"
+                izz="1.4168E-05" />
+        </inertial>
+        <visual>
+            <origin
+                xyz="0 0 0"
+                rpy="0 0 0" />
+            <geometry>
+                <mesh
+                    filename="package://edubot/meshes/imu_link.STL" />
+            </geometry>
+            <material
+                name="">
+                <color
+                    rgba="0.05 0.05 0.05 1" />
+            </material>
+        </visual>
+    </link>
+
+    <joint
+        name="imu_joint"
+        type="fixed">
+        <origin
+            xyz="0.037942 0 0.0949"
+            rpy="0 0 0" />
+        <parent
+            link="base_link" />
+        <child
+            link="imu_link" />
+        <axis
+            xyz="0 0 0" />
+    </joint>
+
+</robot>
