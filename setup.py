@@ -32,6 +32,9 @@ setup(
     license="MIT",
     # Add executable Python scripts and their entry points (usually 'main') here
     entry_points={  # example: 'my_script = my_package.my_script:main'
-        "console_scripts": [],
+        "console_scripts": [
+            f"edubot_serial_bridge = {package_name}.serial_bridge:main",
+            f"edubot_wheel_odom = {package_name}.wheel_odom:main",
+        ],
     },
 )
