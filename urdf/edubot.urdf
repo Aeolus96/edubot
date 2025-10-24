@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Developed 2025 by Devson Butani. Licensed under the MIT License -->
+
 <robot
     name="edubot">
 
+    <!-- base_footprint is theoretically the projection of the base_link onto the ground plane
+    Practically, we are going to use a simple 3D mesh to represent the footprint and collision
+    This is for visualization and computing collision for navigation purposes -->
     <link
         name="base_footprint">
         <visual>
@@ -29,6 +34,7 @@
         </collision>
     </link>
 
+    <!-- base_link is the main body of the robot. Datum for everything relational to the robot -->
     <link
         name="base_link">
         <inertial>
@@ -61,6 +67,8 @@
         </visual>
     </link>
 
+
+    <!-- Joint between base_footprint and base_link -->
     <joint
         name="base_footprint_to_base_link"
         type="fixed">
@@ -75,6 +83,7 @@
             xyz="0 0 0" />
     </joint>
 
+    <!-- Left wheel -->
     <link
         name="left_wheel_link">
         <inertial>
@@ -107,6 +116,7 @@
         </visual>
     </link>
 
+    <!-- Joint between base_link and left_wheel_link -->
     <joint
         name="left_wheel_joint"
         type="continuous">
@@ -127,6 +137,7 @@
             friction="0.1" />
     </joint>
 
+    <!-- Right wheel -->
     <link
         name="right_wheel_link">
         <inertial>
@@ -159,6 +170,7 @@
         </visual>
     </link>
 
+    <!-- Joint between base_link and right_wheel_link -->
     <joint
         name="right_wheel_joint"
         type="continuous">
@@ -179,6 +191,7 @@
             friction="0.1" />
     </joint>
 
+    <!-- Caster wheel. Represented by a sphere to simplify the visualization -->
     <link
         name="caster_sphere_link">
         <inertial>
@@ -211,6 +224,8 @@
         </visual>
     </link>
 
+    <!-- Joint between base_link and caster_sphere_link. Fixed joint to lower vizualization
+    complexity -->
     <joint
         name="caster_sphere_joint"
         type="fixed">
@@ -225,6 +240,7 @@
             xyz="0 0 -1" />
     </joint>
 
+    <!-- LIDAR -->
     <link
         name="lidar_link">
         <inertial>
@@ -257,6 +273,7 @@
         </visual>
     </link>
 
+    <!-- Joint between base_link and lidar_link -->
     <joint
         name="lidar_joint"
         type="fixed">
@@ -271,6 +288,22 @@
             xyz="0 0 0" />
     </joint>
 
+    <!-- Virtual link for our specific lidar LDS-01 -->
+    <link name="laser" />
+
+    <!-- Joint between visualized lidar_link and virtual laser.
+    This transform is specific to LDS-01 and turns the lidar 180 degrees so that when using lidar_link
+    with the scan data is aligned with robot's orientation -->
+    <joint
+        name="lidar_link_to_laser"
+        type="fixed">
+        <!-- Rotate 180 degrees around Z axis -->
+        <origin xyz="0 0 0" rpy="0 0 3.14159" />
+        <parent link="lidar_link" />
+        <child link="laser" />
+    </joint>
+
+    <!-- Camera -->
     <link
         name="camera_link">
         <inertial>
@@ -303,6 +336,7 @@
         </visual>
     </link>
 
+    <!-- Joint between base_link and camera_link -->
     <joint
         name="camera_joint"
         type="fixed">
@@ -317,6 +351,7 @@
             xyz="0 0 0" />
     </joint>
 
+    <!-- IMU -->
     <link
         name="imu_link">
         <inertial>
@@ -349,6 +384,7 @@
         </visual>
     </link>
 
+    <!-- Joint between base_link and imu_link -->
     <joint
         name="imu_joint"
         type="fixed">
