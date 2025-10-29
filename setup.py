@@ -14,9 +14,9 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         # Install package.xml for ROS to find and setup dependencies - REQUIRED
         ("share/" + package_name, ["package.xml"]),
-        # Install launch files - OPTIONAL
-        ("share/" + package_name, glob("launch/*.launch.py")),
-        # Install all other files such as URDF, meshes, and config files - OPTIONAL
+        # Install launch files - OPTIONAL but necessary if you have launch files
+        ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
+        # Install all other files such as URDF, meshes, and config files - OPTIONAL but necessary if you have these files
         ("share/" + package_name + "/urdf/", glob("urdf/*")),
         ("share/" + package_name + "/meshes/", glob("meshes/*")),
         ("share/" + package_name + "/config/", glob("config/*")),

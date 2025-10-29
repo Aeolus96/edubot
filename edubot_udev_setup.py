@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
+
 """
 edubot_udev_setup_interactive.py
 
 Interactive udev rule helper for beginners (Ubuntu 24.04, ROS 2 Jazzy baseline).
+
 - Self-escalates to sudo when needed to write /etc/udev/rules.d/99-edubot.rules.
 - Supports serial USB devices (/dev/ttyUSB*, /dev/ttyACM*) and USB cameras (/dev/video*).
-- Creates stable symlinks, optionally under /dev/edubot/<name> or a custom subdirectory.
+- Creates stable symlinks as direct /dev entries: /dev/edubot_<name> (no directory nesting).
 - Uses safe permissions by default: MODE=0660, GROUP=dialout (serial) or GROUP=video (cameras), TAG+="uaccess".
 - Lets users add multiple devices in one run.
 - Offers two identification modes:
-    1) Show current candidates and let the user pick.
-    2) Guided plug-in: unplug everything, then plug devices one-by-one; script auto-detects each new node.
+  1) Show current candidates and let the user pick.
+  2) Guided plug-in: unplug everything, then plug devices one-by-one; script auto-detects each new node.
 
 Notes:
 - udev rules are appended to /etc/udev/rules.d/99-edubot.rules.
@@ -65,9 +67,8 @@ def require_root_via_sudo():
 
 def discover_usb_parent_block(attribute_walk_text: str) -> Optional[str]:
     """
-    From `udevadm info --attribute-walk --name <dev>`, find the first parent block with SUBSYSTEMS=="usb".
+    From `udevadm info --attribute-walk --name`, find the first parent block with SUBSYSTEMS=="usb".
     """
-    # Split by "looking at ..." headings
     blocks = re.split(r"\n(?=looking at )", attribute_walk_text, flags=re.IGNORECASE)
     for blk in blocks:
         if re.search(r'SUBSYSTEMS==\s*"usb"', blk, flags=re.IGNORECASE):
@@ -87,8 +88,8 @@ def get_device_usb_identifiers(devnode: str) -> Dict[str, Optional[str]]:
     """
     # Attribute walk shows device + parent attributes suitable for udev matching
     walk = run_command(["udevadm", "info", "--attribute-walk", "--name", devnode])
-
     usb_blk = discover_usb_parent_block(walk) or ""
+
     id_vendor = extract_attr(r'ATTRS\{\s*idVendor\s*\}==\s*"([0-9a-fA-F]{4})"', usb_blk)
     id_product = extract_attr(r'ATTRS\{\s*idProduct\s*\}==\s*"([0-9a-fA-F]{4})"', usb_blk)
     serial = extract_attr(r'ATTRS\{\s*serial\s*\}==\s*"([^"]+)"', usb_blk)
@@ -114,26 +115,29 @@ def get_device_usb_identifiers(devnode: str) -> Dict[str, Optional[str]]:
 # -------------------------------
 
 
-def normalize_symlink_target(dir_choice: str, name: str) -> str:
+def _sanitize_symlink_basename(name: str) -> str:
     """
-    Build the SYMLINK target string:
-    - "edubot" -> "edubot/<name>"
-    - "custom:<dir>" -> "<dir>/<name>" (strip a leading '/dev/' if provided)
-    - "none" -> "<name>"
+    Convert free-form user input to a safe basename:
+    - lower-case
+    - replace non [a-z0-9_] with underscore
+    - collapse consecutive underscores
+    - trim leading/trailing underscores
     """
-    name = name.strip()
-    if dir_choice == "edubot":
-        return f"edubot/{name}"
-    if dir_choice.startswith("custom:"):
-        raw = dir_choice.split(":", 1)[1].strip()
-        # Accept "/dev/foo" or "foo"; convert to relative under /dev
-        if raw.startswith("/dev/"):
-            raw = raw[len("/dev/") :]
-        raw = raw.strip("/ ")
-        if raw:
-            return f"{raw}/{name}"
-        return name
-    return name
+    s = name.strip().lower()
+    s = re.sub(r"[^a-z0-9_]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or "device"
+
+
+def normalize_symlink_target(name: str) -> str:
+    """
+    Build the SYMLINK target string as a direct /dev entry:
+    - Input "camera" -> "edubot_camera"
+    - Input "left-cam" -> "edubot_left_cam"
+    Note: udev SYMLINK values are specified relative to /dev (no '/dev/' prefix).
+    """
+    safe = _sanitize_symlink_basename(name)
+    return f"edubot_{safe}"
 
 
 def build_serial_rule(id_vendor: str, id_product: str, serial: Optional[str], link_target: str, perms: str) -> str:
@@ -150,11 +154,13 @@ def build_serial_rule(id_vendor: str, id_product: str, serial: Optional[str], li
     ]
     if serial:
         parts.append(f'ATTRS{{serial}}=="{serial}"')
+
     assigns = [f'SYMLINK+="{link_target}"']
     if perms == "safe":
         assigns += ['MODE="0660"', 'GROUP="dialout"', 'TAG+="uaccess"']
     else:
         assigns += ['MODE="0666"']
+
     return ", ".join(parts + assigns)
 
 
@@ -173,11 +179,13 @@ def build_camera_rule(id_vendor: str, id_product: str, serial: Optional[str], li
     ]
     if serial:
         parts.append(f'ATTRS{{serial}}=="{serial}"')
+
     assigns = [f'SYMLINK+="{link_target}"']
     if perms == "safe":
         assigns += ['MODE="0660"', 'GROUP="video"', 'TAG+="uaccess"']
     else:
         assigns += ['MODE="0666"']
+
     return ", ".join(parts + assigns)
 
 
@@ -217,27 +225,10 @@ def diff_new_nodes(before: set, after: set) -> List[str]:
     return new_paths
 
 
-def choose_symlink_dir() -> str:
-    print("\nWhere should the symlink live?")
-    print("  1) edubot dir (/dev/edubot/<name>; RECOMMENDED)")
-    print("  2) custom dir (/dev/<dir>/<name>)")
-    print("  3) no dir     (/dev/<name>)")
-    while True:
-        choice = input("Select 1/2/3: ").strip()
-        if choice == "1":
-            return "edubot"
-        if choice == "2":
-            d = input("Enter directory under /dev (e.g., edubot/cameras): ").strip()
-            return f"custom:{d}"
-        if choice == "3":
-            return "none"
-        print("Please enter 1, 2, or 3.")
-
-
 def choose_perms_style() -> str:
     print("\nPermissions style:")
-    print("  1) Safe           (MODE=0660 + TAG+=uaccess; RECOMMENDED)")
-    print("  2) World-writable (MODE=0666; workaround but less secure)")
+    print(" 1) Safe (MODE=0660 + TAG+=uaccess; RECOMMENDED)")
+    print(" 2) World-writable (MODE=0666; workaround but less secure)")
     while True:
         choice = input("Select 1/2: ").strip()
         if choice == "1":
@@ -249,9 +240,9 @@ def choose_perms_style() -> str:
 
 def identify_device_interactively() -> Optional[str]:
     print("\nDevice identification:")
-    print("  1) List of current serial/camera nodes and pick one")
-    print("  2) Guided plug-in (RECOMMENDED for first-time users)")
-    print("  3) Type the full path manually (/dev/ttyUSB0)")
+    print(" 1) List of current serial/camera nodes and pick one")
+    print(" 2) Guided plug-in (RECOMMENDED for first-time users)")
+    print(" 3) Type the full path manually (/dev/ttyUSB0)")
     while True:
         choice = input("Select 1/2/3: ").strip()
         if choice == "1":
@@ -260,7 +251,7 @@ def identify_device_interactively() -> Optional[str]:
                 print("No candidate devices found.")
                 return None
             for idx, p in enumerate(candidates, 1):
-                print(f"  {idx}) {p}")
+                print(f" {idx}) {p}")
             while True:
                 sel = input(f"Pick 1-{len(candidates)}: ").strip()
                 if sel.isdigit() and 1 <= int(sel) <= len(candidates):
@@ -276,10 +267,9 @@ def identify_device_interactively() -> Optional[str]:
             if not new_nodes:
                 print("No new device nodes detected.")
                 return None
-            # If multiple nodes appeared (e.g., some cameras), let user pick
             print("Detected new device nodes:")
             for idx, p in enumerate(new_nodes, 1):
-                print(f"  {idx}) {p}")
+                print(f" {idx}) {p}")
             while True:
                 sel = input(f"Pick 1-{len(new_nodes)}: ").strip()
                 if sel.isdigit() and 1 <= int(sel) <= len(new_nodes):
@@ -302,7 +292,6 @@ def classify_device(devnode: str) -> str:
         return "serial"
     if os.path.basename(devnode).startswith("video"):
         return "camera"
-    # Fallback heuristic: treat tty* as serial
     if "/tty" in devnode:
         return "serial"
     return "camera"
@@ -322,12 +311,13 @@ def add_one_device():
     dev_type = classify_device(devnode)
     print(f"\nSelected device: {devnode} [{dev_type}]")
 
-    # Ask for link name and placement
+    # Ask for link name (sanitized inside normalize_symlink_target)
     link_name = ""
     while not link_name:
         link_name = input("Enter desired symlink name (e.g., prizm, imu, camera, lidar): ").strip()
-    link_dir_choice = choose_symlink_dir()
-    link_target = normalize_symlink_target(link_dir_choice, link_name)
+
+    # Always create /dev/edubot_<name>
+    link_target = normalize_symlink_target(link_name)
 
     perms = choose_perms_style()
 
@@ -370,6 +360,7 @@ def main():
     print("==========================================\n")
     print(f"Rules file: {RULES_FILE}")
     print("If a symlink doesn’t appear immediately, try replugging the device.\n")
+    print("Example verification: ls -l /dev/edubot_camera\n")
 
 
 if __name__ == "__main__":

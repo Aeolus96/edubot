@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    video_device: "/dev/edubot_camera" # This file is specific to Genius F100 USB camera
+    framerate: 30.0
+    io_method: "mmap"
+    frame_id: "camera_link"
+    pixel_format: "mjpeg2rgb" # see usb_cam/supported_formats for list of supported formats
+    av_device_format: "YUV422P"
+    image_width: 1920
+    image_height: 1080
+    camera_name: "geniusf100"
+    camera_info_url: "package://edubot/config/camera_info.yaml"
+    brightness: -1
+    contrast: -1
+    saturation: -1
+    sharpness: -1
+    gain: -1
+    auto_white_balance: true
+    white_balance: -1
+    autoexposure: true
+    exposure: 100
+    autofocus: false
+    focus: -1
