@@ -1,0 +1,49 @@
+imu_filter:
+  ros__parameters:
+    # If true, publishes a one-shot “gravity (and mag) only” orientation
+    # estimate without gyro integration, mainly for debugging.
+    stateless: false
+
+    # If true, uses the magnetometer to estimate orientation
+    use_mag: false
+
+    # If true, publishes a tf transform from fixed_frame to the IMU frame
+    publish_tf: false
+
+    # If true, the tf transform is from the IMU frame to the fixed_frame
+    # (default: fixed_frame to IMU frame is more common)
+    reverse_tf: false
+
+    # The name of the fixed frame (usually a world or odom frame)
+    fixed_frame: "odom"
+
+    # Time step to use for the filter. If 0.0, uses the time difference from the
+    # last message.
+    constant_dt: 0.0
+
+    # If true, publishes debug topics showing intermediate filter states
+    publish_debug_topics: false
+
+    # Not a ROS tf frame name, just indicates the convention
+    # Options are "enu" or "ned" or "nwu". ROS uses "enu" convention. REP-145.
+    world_frame: "enu" # East-North-Up
+
+    # Madgwick’s gradient-descent step size (β). Higher values converge faster but are noisier; lower values are smoother but slower to correct.
+    gain: 0.033
+
+    # Gyro drift (bias) adaptation gain; larger values estimate and subtract gyro bias more aggressively, smaller values adapt slowly or not at all.
+    zeta: 0.01
+
+    # Hard-iron magnetometer offsets to be subtracted before fusion, if a mag is used.
+    mag_bias_x: 0.0
+    mag_bias_y: 0.0
+    mag_bias_z: 0.0
+
+    # A fixed yaw rotation applied to the estimated orientation, convenient for zeroing/aligning yaw to a map at startup.
+    yaw_offset: 0.0
+
+    # Magnetic declination (east-positive) to rotate magnetic North to true North when a mag is used.
+    declination: 0.0
+
+    # Standard deviation placed on the orientation estimate; squared and written on the diagonal of the orientation covariance sent in sensor_msgs/Imu.
+    orientation_stddev: 0.01

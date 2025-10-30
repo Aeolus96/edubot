@@ -3,22 +3,9 @@
 """
 edubot_udev_setup_interactive.py
 
-Interactive udev rule helper for beginners (Ubuntu 24.04, ROS 2 Jazzy baseline).
-
-- Self-escalates to sudo when needed to write /etc/udev/rules.d/99-edubot.rules.
-- Supports serial USB devices (/dev/ttyUSB*, /dev/ttyACM*) and USB cameras (/dev/video*).
-- Creates stable symlinks as direct /dev entries: /dev/edubot_<name> (no directory nesting).
-- Uses safe permissions by default: MODE=0660, GROUP=dialout (serial) or GROUP=video (cameras), TAG+="uaccess".
-- Lets users add multiple devices in one run.
-- Offers two identification modes:
-  1) Show current candidates and let the user pick.
-  2) Guided plug-in: unplug everything, then plug devices one-by-one; script auto-detects each new node.
-
-Notes:
-- udev rules are appended to /etc/udev/rules.d/99-edubot.rules.
-- After finishing, it prints copy-paste lines to reload and trigger rules.
-
-Author: Edubot
+Interactive udev rule helper (Ubuntu 24.04, ROS 2 Jazzy).
+- Creates stable symlinks as direct /dev entries: /dev/edubot_<name> and (for cameras) /dev/edubot_<name>_meta.
+- Splits UVC capture vs metadata nodes using ENV{ID_V4L_CAPABILITIES} and ATTR{index}.
 """
 
 import os
@@ -49,10 +36,7 @@ def try_run_command(args: List[str]) -> Tuple[int, str, str]:
 
 
 def require_root_via_sudo():
-    """
-    If not root, re-exec this script using sudo -E to request elevation.
-    Keeps UX simple for first-time Linux users.
-    """
+    """If not root, re-exec this script using sudo -E to request elevation."""
     if os.geteuid() == 0:
         return
     script_path = os.path.abspath(sys.argv[0])
@@ -66,9 +50,7 @@ def require_root_via_sudo():
 
 
 def discover_usb_parent_block(attribute_walk_text: str) -> Optional[str]:
-    """
-    From `udevadm info --attribute-walk --name`, find the first parent block with SUBSYSTEMS=="usb".
-    """
+    """From `udevadm info --attribute-walk --name`, find the first parent block with SUBSYSTEMS==\"usb\"."""
     blocks = re.split(r"\n(?=looking at )", attribute_walk_text, flags=re.IGNORECASE)
     for blk in blocks:
         if re.search(r'SUBSYSTEMS==\s*"usb"', blk, flags=re.IGNORECASE):
@@ -82,11 +64,7 @@ def extract_attr(pattern: str, text: str) -> Optional[str]:
 
 
 def get_device_usb_identifiers(devnode: str) -> Dict[str, Optional[str]]:
-    """
-    Extract USB identifiers (idVendor, idProduct, serial if present) for a device node.
-    Prefers ATTRS{...} from the USB parent; falls back to ID_* properties where helpful.
-    """
-    # Attribute walk shows device + parent attributes suitable for udev matching
+    """Extract USB identifiers (idVendor, idProduct, serial if present) for a device node."""
     walk = run_command(["udevadm", "info", "--attribute-walk", "--name", devnode])
     usb_blk = discover_usb_parent_block(walk) or ""
 
@@ -94,7 +72,6 @@ def get_device_usb_identifiers(devnode: str) -> Dict[str, Optional[str]]:
     id_product = extract_attr(r'ATTRS\{\s*idProduct\s*\}==\s*"([0-9a-fA-F]{4})"', usb_blk)
     serial = extract_attr(r'ATTRS\{\s*serial\s*\}==\s*"([^"]+)"', usb_blk)
 
-    # Property view as a fallback reference
     props = run_command(["udevadm", "info", "--query=property", "--name", devnode])
     if not id_vendor:
         id_vendor = extract_attr(r"^ID_VENDOR_ID=(\w+)$", props)
@@ -110,42 +87,46 @@ def get_device_usb_identifiers(devnode: str) -> Dict[str, Optional[str]]:
     }
 
 
+def get_v4l2_index(devnode: str) -> Optional[int]:
+    """Read /sys/class/video4linux/<node>/index to determine the node index."""
+    base = os.path.basename(devnode)
+    sys_index = f"/sys/class/video4linux/{base}/index"
+    try:
+        with open(sys_index, "r", encoding="utf-8") as f:
+            return int(f.read().strip())
+    except Exception:
+        return None
+
+
+def get_v4l2_caps(devnode: str) -> str:
+    """Return the ID_V4L_CAPABILITIES string for a node, or empty if unavailable."""
+    code, out, _ = try_run_command(["udevadm", "info", "--query=property", "--name", devnode])
+    if code != 0:
+        return ""
+    m = re.search(r"^ID_V4L_CAPABILITIES=(.*)$", out, flags=re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
 # -------------------------------
 # Rule generation
 # -------------------------------
 
 
 def _sanitize_symlink_basename(name: str) -> str:
-    """
-    Convert free-form user input to a safe basename:
-    - lower-case
-    - replace non [a-z0-9_] with underscore
-    - collapse consecutive underscores
-    - trim leading/trailing underscores
-    """
+    """Lower-case, replace non [a-z0-9_] with '_', collapse underscores."""
     s = name.strip().lower()
     s = re.sub(r"[^a-z0-9_]+", "_", s)
     s = re.sub(r"_+", "_", s).strip("_")
     return s or "device"
 
 
-def normalize_symlink_target(name: str) -> str:
-    """
-    Build the SYMLINK target string as a direct /dev entry:
-    - Input "camera" -> "edubot_camera"
-    - Input "left-cam" -> "edubot_left_cam"
-    Note: udev SYMLINK values are specified relative to /dev (no '/dev/' prefix).
-    """
-    safe = _sanitize_symlink_basename(name)
-    return f"edubot_{safe}"
+def make_dev_symlink(name: str) -> str:
+    """Return udev SYMLINK target (relative to /dev) as edubot_<name>."""
+    return f"edubot_{_sanitize_symlink_basename(name)}"
 
 
 def build_serial_rule(id_vendor: str, id_product: str, serial: Optional[str], link_target: str, perms: str) -> str:
-    """
-    Build udev rule for serial devices (/dev/ttyUSB*, /dev/ttyACM*).
-    perms: "safe" -> MODE=0660, GROUP=dialout, TAG+="uaccess"
-           "world" -> MODE=0666
-    """
+    """Build udev rule for serial devices (/dev/ttyUSB*, /dev/ttyACM*)."""
     parts = [
         'ACTION=="add"',
         'SUBSYSTEM=="tty"',
@@ -164,13 +145,21 @@ def build_serial_rule(id_vendor: str, id_product: str, serial: Optional[str], li
     return ", ".join(parts + assigns)
 
 
-def build_camera_rule(id_vendor: str, id_product: str, serial: Optional[str], link_target: str, perms: str) -> str:
+def build_camera_rules_split(
+    id_vendor: str,
+    id_product: str,
+    serial: Optional[str],
+    link_base: str,
+    perms: str,
+    capture_index: int,
+    metadata_index: int,
+) -> List[str]:
     """
-    Build udev rule for V4L2 cameras (/dev/video*).
-    perms: "safe" -> MODE=0660, GROUP=video, TAG+="uaccess"
-           "world" -> MODE=0666
+    Build two rules for V4L2 cameras:
+    - capture: ENV{ID_V4L_CAPABILITIES} contains 'capture' and ATTR{index}==capture_index -> SYMLINK+=link_base
+    - metadata: ATTR{index}==metadata_index -> SYMLINK+=link_base + '_meta'
     """
-    parts = [
+    common = [
         'ACTION=="add"',
         'SUBSYSTEM=="video4linux"',
         'KERNEL=="video[0-9]*"',
@@ -178,15 +167,36 @@ def build_camera_rule(id_vendor: str, id_product: str, serial: Optional[str], li
         f'ATTRS{{idProduct}}=="{id_product}"',
     ]
     if serial:
-        parts.append(f'ATTRS{{serial}}=="{serial}"')
+        common.append(f'ATTRS{{serial}}=="{serial}"')
 
-    assigns = [f'SYMLINK+="{link_target}"']
-    if perms == "safe":
-        assigns += ['MODE="0660"', 'GROUP="video"', 'TAG+="uaccess"']
-    else:
-        assigns += ['MODE="0666"']
+    def assigns(name: str) -> List[str]:
+        a = [f'SYMLINK+="{name}"']
+        if perms == "safe":
+            a += ['MODE="0660"', 'GROUP="video"', 'TAG+="uaccess"']
+        else:
+            a += ['MODE="0666"']
+        return a
 
-    return ", ".join(parts + assigns)
+    # Capture rule
+    capture_rule = ", ".join(
+        common
+        + [
+            f'ATTR{{index}}=="{capture_index}"',
+            'ENV{ID_V4L_CAPABILITIES}=="*capture*"',
+        ]
+        + assigns(link_base)
+    )
+
+    # Metadata rule
+    metadata_rule = ", ".join(
+        common
+        + [
+            f'ATTR{{index}}=="{metadata_index}"',
+        ]
+        + assigns(link_base + "_meta")
+    )
+
+    return [capture_rule, metadata_rule]
 
 
 def append_rule(rule_line: str) -> None:
@@ -202,9 +212,7 @@ def append_rule(rule_line: str) -> None:
 
 
 def list_candidates() -> List[str]:
-    """
-    Return sorted list of likely device nodes to choose from.
-    """
+    """Return sorted list of likely device nodes to choose from."""
     paths = set()
     for pattern in ("/dev/ttyUSB*", "/dev/ttyACM*", "/dev/video*"):
         for p in glob.glob(pattern):
@@ -214,15 +222,12 @@ def list_candidates() -> List[str]:
 
 
 def snapshot_candidate_set() -> set:
-    """
-    Snapshot set of candidate device nodes for diffing.
-    """
+    """Snapshot set of candidate device nodes for diffing."""
     return set(list_candidates())
 
 
 def diff_new_nodes(before: set, after: set) -> List[str]:
-    new_paths = sorted(list(after - before))
-    return new_paths
+    return sorted(list(after - before))
 
 
 def choose_perms_style() -> str:
@@ -241,8 +246,8 @@ def choose_perms_style() -> str:
 def identify_device_interactively() -> Optional[str]:
     print("\nDevice identification:")
     print(" 1) List of current serial/camera nodes and pick one")
-    print(" 2) Guided plug-in (RECOMMENDED for first-time users)")
-    print(" 3) Type the full path manually (/dev/ttyUSB0)")
+    print(" 2) Guided plug-in (RECOMMENDED)")
+    print(" 3) Type the full path manually (/dev/ttyUSB0 or /dev/video0)")
     while True:
         choice = input("Select 1/2/3: ").strip()
         if choice == "1":
@@ -258,9 +263,9 @@ def identify_device_interactively() -> Optional[str]:
                     return candidates[int(sel) - 1]
                 print("Invalid selection.")
         elif choice == "2":
-            input("Unplug the robot/devices now, then press Enter...")
+            input("Unplug devices now, then press Enter...")
             base = snapshot_candidate_set()
-            input("Plug in ONE device now, wait 2-3 seconds, then press Enter...")
+            input("Plug in ONE device, wait 2-3 seconds, then press Enter...")
             time.sleep(2.0)
             after = snapshot_candidate_set()
             new_nodes = diff_new_nodes(base, after)
@@ -276,7 +281,7 @@ def identify_device_interactively() -> Optional[str]:
                     return new_nodes[int(sel) - 1]
                 print("Invalid selection.")
         elif choice == "3":
-            p = input("Enter device path (e.g., /dev/ttyUSB0 or /dev/video0): ").strip()
+            p = input("Enter device path: ").strip()
             if os.path.exists(p):
                 return p
             print("That path does not exist.")
@@ -285,16 +290,11 @@ def identify_device_interactively() -> Optional[str]:
 
 
 def classify_device(devnode: str) -> str:
-    """
-    Return 'serial' or 'camera' based on path.
-    """
-    if os.path.basename(devnode).startswith(("ttyUSB", "ttyACM")):
+    """Return 'serial' or 'camera' based on path."""
+    base = os.path.basename(devnode)
+    if base.startswith(("ttyUSB", "ttyACM")) or "/tty" in devnode:
         return "serial"
-    if os.path.basename(devnode).startswith("video"):
-        return "camera"
-    if "/tty" in devnode:
-        return "serial"
-    return "camera"
+    return "camera" if base.startswith("video") else "camera"
 
 
 # -------------------------------
@@ -311,41 +311,52 @@ def add_one_device():
     dev_type = classify_device(devnode)
     print(f"\nSelected device: {devnode} [{dev_type}]")
 
-    # Ask for link name (sanitized inside normalize_symlink_target)
     link_name = ""
     while not link_name:
-        link_name = input("Enter desired symlink name (e.g., prizm, imu, camera, lidar): ").strip()
-
-    # Always create /dev/edubot_<name>
-    link_target = normalize_symlink_target(link_name)
+        link_name = input("Enter base symlink name (e.g., camera, imu, lidar): ").strip()
+    link_base = make_dev_symlink(link_name)
 
     perms = choose_perms_style()
 
-    # Read identifiers
     print("\nReading USB identifiers (idVendor, idProduct, serial if present)...")
     ids = get_device_usb_identifiers(devnode)
     if not ids.get("idVendor") or not ids.get("idProduct"):
         print("Could not determine idVendor/idProduct; is this a USB-backed device?")
         return
 
-    # Build rule per class
     if dev_type == "serial":
-        rule_line = build_serial_rule(ids["idVendor"], ids["idProduct"], ids.get("serial"), link_target, perms)
-    else:
-        rule_line = build_camera_rule(ids["idVendor"], ids["idProduct"], ids.get("serial"), link_target, perms)
+        rule_line = build_serial_rule(ids["idVendor"], ids["idProduct"], ids.get("serial"), link_base, perms)
+        print("\n[preview] udev rule:")
+        print(rule_line)
+        append_rule(rule_line)
+        return
 
-    # Show preview and append
-    print("\n[preview] udev rule:")
-    print(rule_line)
-    append_rule(rule_line)
+    # Camera: emit two rules (capture and metadata)
+    idx = get_v4l2_index(devnode)
+    caps = get_v4l2_caps(devnode)
+    # Default assumption: index 0 is capture, index 1 is metadata
+    capture_index = 0
+    metadata_index = 1
+    # If user selected index 1 first, flip defaults
+    if idx == 1 and "capture" not in caps:
+        capture_index, metadata_index = 0, 1
+    elif idx == 0 and "capture" in caps:
+        capture_index, metadata_index = 0, 1
+    # Build and append both rules
+    rules = build_camera_rules_split(
+        ids["idVendor"], ids["idProduct"], ids.get("serial"), link_base, perms, capture_index, metadata_index
+    )
+    print("\n[preview] udev rules (capture + metadata):")
+    for r in rules:
+        print(r)
+        append_rule(r)
 
 
 def main():
-    # Elevate early so the flow is uniform for beginners
     require_root_via_sudo()
 
     print("Edubot udev setup — create /dev symlinks for serial devices and USB cameras.\n")
-    print("You can add multiple devices (one by one).\n")
+    print("Cameras get two symlinks by default: edubot_<name> (capture) and edubot_<name>_meta (metadata).\n")
 
     while True:
         add_one_device()
@@ -353,14 +364,12 @@ def main():
         if again not in ("y", "yes"):
             break
 
-    # Exit instructions: clearly copy-pasteable
     print("\n=== Copy-paste these to apply rules now ===")
     print("sudo udevadm control --reload")
     print("sudo udevadm trigger")
     print("==========================================\n")
     print(f"Rules file: {RULES_FILE}")
     print("If a symlink doesn’t appear immediately, try replugging the device.\n")
-    print("Example verification: ls -l /dev/edubot_camera\n")
 
 
 if __name__ == "__main__":

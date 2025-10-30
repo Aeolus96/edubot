@@ -4,13 +4,14 @@
 
 """
 
-from launch import LaunchDescription
-from launch_ros.actions import Node
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from ament_index_python.packages import get_package_share_directory
 import os
 
+from ament_index_python.packages import get_package_share_directory
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
+
+from launch import LaunchDescription
 
 # Path to package share directory
 edubot_share_dir = get_package_share_directory("edubot")
@@ -48,6 +49,9 @@ def usb_camera():
         name="usb_cam_node",
         parameters=[edubot_share_dir + "/config/camera_params.yaml"],  # ONLY CHANGE THIS .yaml FOR CAMERA PARAMETERS
         output="screen",
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=10.0,
     )
 
 
@@ -60,6 +64,54 @@ def imu_node():
             "serial_port": "/dev/edubot_imu",
             "frame_id": "imu_link",
         }.items(),
+    )
+
+
+# IMU filter node - Madgwick filter for IMU data
+def imu_filter():
+    return Node(
+        package="imu_filter_madgwick",
+        executable="imu_filter_madgwick_node",
+        name="imu_filter",
+        output="screen",
+        parameters=[edubot_share_dir + "/config/imu_filter.yaml"],
+        remappings=[
+            ("/imu/data_raw", "/imu/data"),  # Input topic from IMU node
+            ("/imu/data", "/imu/data_filtered"),  # Output topic for filtered IMU data
+            # ("/imu/mag", "/imu/mag"),  # Add if using Magnetometer data topic
+        ],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=2.0,
+    )
+
+
+# Robot Localization with Extended Kalman Filter (EKF) - publishes fused odometry and IMU data
+# Published tf between "odom" and "base_footprint" frames
+def ekf_odom():
+    return Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node",
+        output="screen",
+        parameters=[edubot_share_dir + "/config/ekf.yaml"],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=2.0,
+    )
+
+
+# SLAM node - SLAM Toolbox for 2D SLAM using LiDAR and odometry data
+def slam_toolbox():
+    return Node(
+        package="slam_toolbox",
+        executable="async_slam_toolbox_node",
+        name="slam_toolbox",
+        output="screen",
+        parameters=[edubot_share_dir + "/config/slam_toolbox.yaml"],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=2.0,
     )
 
 
@@ -76,4 +128,6 @@ def generate_launch_description():
     ld.add_action(lds01_lidar())
     ld.add_action(usb_camera())
     ld.add_action(imu_node())
+    ld.add_action(imu_filter())
+    ld.add_action(ekf_odom())
     return ld
