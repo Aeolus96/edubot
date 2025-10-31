@@ -29,10 +29,10 @@ imu_filter:
     world_frame: "enu" # East-North-Up
 
     # Madgwick’s gradient-descent step size (β). Higher values converge faster but are noisier; lower values are smoother but slower to correct.
-    gain: 0.033
+    gain: 0.02
 
     # Gyro drift (bias) adaptation gain; larger values estimate and subtract gyro bias more aggressively, smaller values adapt slowly or not at all.
-    zeta: 0.01
+    zeta: 0.05
 
     # Hard-iron magnetometer offsets to be subtracted before fusion, if a mag is used.
     mag_bias_x: 0.0
@@ -46,4 +46,4 @@ imu_filter:
     declination: 0.0
 
     # Standard deviation placed on the orientation estimate; squared and written on the diagonal of the orientation covariance sent in sensor_msgs/Imu.
-    orientation_stddev: 0.01
+    orientation_stddev: 0.05

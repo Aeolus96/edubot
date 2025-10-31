@@ -48,7 +48,7 @@ def wheel_odometry_node():
             {"wheelbase_track_width_meters": 0.28636},  # Measured wheelbase
             {"odom_frame_id": "odom"},
             {"base_link_frame_id": "base_footprint"},
-            {"publish_odom_transform": True},  # Enable TF for RViz, Disable if using external localization
+            {"publish_odom_transform": False},  # Enable TF for RViz, Disable if using external localization
         ],
         # Restart policy for robustness
         respawn=True,

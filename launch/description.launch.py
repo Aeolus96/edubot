@@ -50,5 +50,5 @@ def joint_state_publisher_node():
 def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(robot_state_publisher_node())
-    ld.add_action(joint_state_publisher_node())
+    # ld.add_action(joint_state_publisher_node()) # Comment out if another joint state publisher is used
     return ld

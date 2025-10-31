@@ -76,9 +76,9 @@ def imu_filter():
         output="screen",
         parameters=[edubot_share_dir + "/config/imu_filter.yaml"],
         remappings=[
-            ("/imu/data_raw", "/imu/data"),  # Input topic from IMU node
-            ("/imu/data", "/imu/data_filtered"),  # Output topic for filtered IMU data
-            # ("/imu/mag", "/imu/mag"),  # Add if using Magnetometer data topic
+            ("imu/data_raw", "/imu/data_raw"),  # Input topic from IMU node
+            ("imu/data", "/imu/data_filtered"),  # Output topic for filtered IMU data
+            # ("imu/mag", "/imu/mag"),  # Add if using Magnetometer data topic
         ],
         # Restart policy for robustness
         respawn=True,
@@ -108,7 +108,7 @@ def slam_toolbox():
         executable="async_slam_toolbox_node",
         name="slam_toolbox",
         output="screen",
-        parameters=[edubot_share_dir + "/config/slam_toolbox.yaml"],
+        parameters=[edubot_share_dir + "/config/slam_toolbox_online_async.yaml"],
         # Restart policy for robustness
         respawn=True,
         respawn_delay=2.0,

@@ -48,7 +48,8 @@ class WheelOdometryNode(Node):
         self.declare_parameter("wheelbase_track_width_meters", 0.28636)  # Distance between wheel centers
         self.declare_parameter("odom_frame_id", "odom")
         self.declare_parameter("base_link_frame_id", "base_link")
-        self.declare_parameter("publish_odom_transform", True)  # Set false if robot_localization handles TF
+        # IMPORTANT: when using robot_localization, that node should be the sole publisher of odom->base_* TF
+        self.declare_parameter("publish_odom_transform", False)  # Set false when robot_localization handles TF
 
         # Extract parameter values
         self.left_wheel_joint_name = self.get_parameter("left_wheel_joint_name").get_parameter_value().string_value
@@ -74,7 +75,8 @@ class WheelOdometryNode(Node):
         self.previous_right_wheel_position = None
 
         # ROS interfaces
-        self.odometry_publisher = self.create_publisher(Odometry, "odom", 10)
+        # Publish wheel odometry on a dedicated topic to keep roles separate from EKF's TF publisher
+        self.odometry_publisher = self.create_publisher(Odometry, "wheel/odometry", 10)
         self.joint_states_subscriber = self.create_subscription(
             JointState, "joint_states", self.handle_joint_state_message, 10
         )
@@ -176,89 +178,33 @@ class WheelOdometryNode(Node):
         odometry_message.twist.twist.angular.y = 0.0
         odometry_message.twist.twist.angular.z = robot_angular_velocity
 
-        # Set covariance matrices with reasonable estimates for wheel odometry
-        # These values can be tuned based on empirical testing or left for robot_localization to override
+        # Covariances:
+        # - Keep reasonable values on the fields EKF uses (vx, vyaw).
+        # - Use large-but-finite values on unused axes to avoid numerical extremes.
+
+        # fmt: off
         odometry_message.pose.covariance = [
-            0.05,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,  # x variance and cross-terms
-            0.0,
-            0.05,
-            0.0,
-            0.0,
-            0.0,
-            0.0,  # y variance
-            0.0,
-            0.0,
-            1e6,
-            0.0,
-            0.0,
-            0.0,  # z (not used, high variance)
-            0.0,
-            0.0,
-            0.0,
-            1e6,
-            0.0,
-            0.0,  # roll (not used)
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1e6,
-            0.0,  # pitch (not used)
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.1,  # yaw variance
+            0.05,  0.0,   0.0,   0.0,   0.0,   0.0,   # x
+            0.0,   0.05,  0.0,   0.0,   0.0,   0.0,   # y
+            0.0,   0.0,   100.0, 0.0,   0.0,   0.0,   # z (unused)
+            0.0,   0.0,   0.0,   100.0 ,0.0,   0.0,   # roll (unused)
+            0.0,   0.0,   0.0,   0.0,   100.0, 0.0,   # pitch (unused)
+            0.0,   0.0,   0.0,   0.0,   0.0,   0.2,   # yaw
         ]
 
         odometry_message.twist.covariance = [
-            0.02,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,  # vx variance
-            0.0,
-            1e6,
-            0.0,
-            0.0,
-            0.0,
-            0.0,  # vy (not used for differential drive)
-            0.0,
-            0.0,
-            0.05,
-            0.0,
-            0.0,
-            0.0,  # vz (not used)
-            0.0,
-            0.0,
-            0.0,
-            1e6,
-            0.0,
-            0.0,  # angular x (not used)
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1e6,
-            0.0,  # angular y (not used)
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.1,  # angular z (yaw rate) variance
+            0.02,  0.0,    0.0,    0.0,    0.0,    0.0,   # vx
+            0.0,   100.0,  0.0,    0.0,    0.0,    0.0,   # vy (unused)
+            0.0,   0.0,    100.0,  0.0,    0.0,    0.0,   # vz (unused)
+            0.0,   0.0,    0.0,    100.0,  0.0,    0.0,   # wx (unused)
+            0.0,   0.0,    0.0,    0.0,    100.0,  0.0,   # wy (unused)
+            0.0,   0.0,    0.0,    0.0,    0.0,   0.05,   # wz (vyaw)
         ]
+        # fmt: on
 
         self.odometry_publisher.publish(odometry_message)
 
-        # Broadcast TF transform for RViz visualization if enabled
+        # Broadcast TF transform only if explicitly enabled (should be false when using EKF)
         if self.should_publish_transform and self.transform_broadcaster:
             transform_message = TransformStamped()
             transform_message.header.stamp = odometry_message.header.stamp
