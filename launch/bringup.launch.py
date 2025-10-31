@@ -17,21 +17,21 @@ from launch import LaunchDescription
 edubot_share_dir = get_package_share_directory("edubot")
 
 
-# Serial bridge and wheel odometry node - handles PRIZM communication
+# Serial bridge and wheel odometry node - handles PRIZM communication and publishes joint states and odometry
 def edubot_bridge():
     return IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "bridge.launch.py")])
     )
 
 
-# Robot description nodes - robot_state_publisher and joint_state_publisher
+# Robot description nodes - Loads URDF and publishes robot_state_publisher
 def edubot_description():
     return IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "description.launch.py")])
     )
 
 
-# 2D LiDAR node - LDS01 driver
+# 2D LiDAR node - LDS01 2D LiDAR driver
 def lds01_lidar():
     # Find the package directory for the LDS01 driver
     lds01_share_dir = get_package_share_directory("hls_lfcd_lds_driver")
@@ -55,7 +55,7 @@ def usb_camera():
     )
 
 
-# IMU node - BMI088 driver
+# IMU node - BMI088 6-axis IMU driver
 def imu_node():
     imu_driver_share_dir = get_package_share_directory("imu_serial_to_ros_publisher")
     return IncludeLaunchDescription(
@@ -67,7 +67,7 @@ def imu_node():
     )
 
 
-# IMU filter node - Madgwick filter for IMU data
+# IMU filter node - Madgwick filter for IMU data, publishes filtered orientation with raw imu data
 def imu_filter():
     return Node(
         package="imu_filter_madgwick",
@@ -86,7 +86,7 @@ def imu_filter():
     )
 
 
-# Robot Localization with Extended Kalman Filter (EKF) - publishes fused odometry and IMU data
+# Robot Localization with Extended Kalman Filter (EKF) - fuses odometry with filtered IMU
 # Published tf between "odom" and "base_footprint" frames
 def ekf_odom():
     return Node(
@@ -101,17 +101,15 @@ def ekf_odom():
     )
 
 
-# SLAM node - SLAM Toolbox for 2D SLAM using LiDAR and odometry data
+# SLAM node - SLAM Toolbox for online(incremental mapping) asynchronous(multi-threaded) SLAM
 def slam_toolbox():
-    return Node(
-        package="slam_toolbox",
-        executable="async_slam_toolbox_node",
-        name="slam_toolbox",
-        output="screen",
-        parameters=[edubot_share_dir + "/config/slam_toolbox_online_async.yaml"],
-        # Restart policy for robustness
-        respawn=True,
-        respawn_delay=2.0,
+    slam_toolbox_share_dir = get_package_share_directory("slam_toolbox")
+    return IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(slam_toolbox_share_dir, "launch", "online_async_launch.py")]),
+        launch_arguments={
+            "use_sim_time": "false",
+            "slam_params_file": os.path.join(edubot_share_dir, "config", "slam_toolbox_online_async.yaml"),
+        }.items(),
     )
 
 
@@ -130,4 +128,5 @@ def generate_launch_description():
     ld.add_action(imu_node())
     ld.add_action(imu_filter())
     ld.add_action(ekf_odom())
+    ld.add_action(slam_toolbox())
     return ld
