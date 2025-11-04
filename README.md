@@ -55,6 +55,15 @@ rosdep install --from-paths src --ignore-src -r -y
 
 >`rosdep` maps package dependencies declared in `package.xml` to system packages. It will try to install ROS packages (via apt) and system libraries. For Python packages, rosdep will either install apt-packaged Python libraries or you may need to install with `pip` (see next step).
 
+For installing Python packages with `pip` use a virtual environment (recommended for Ubuntu 24.04):
+
+```bash
+# Create a virtual environment named `jazzy`
+cd ~/
+python3 -m venv jazzy --system-site-packages
+source ~/jazzy/bin/activate
+```
+
 ```bash
 # Both packages include `requirements.txt` files. Install them with pip:
 python3 -m pip install --user -r src/edubot/requirements.txt
