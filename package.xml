@@ -26,6 +26,7 @@
   <!-- Runtime dependencies -->
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>hls_lfcd_lds_driver</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>imu_filter_madgwick</exec_depend>
   <exec_depend>robot_localization</exec_depend>
