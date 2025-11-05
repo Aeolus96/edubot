@@ -1,0 +1,36 @@
+laser_scan_filter:
+  ros__parameters:
+    # Ensure TF is available before filtering (optional but recommended)
+    tf_message_filter_target_frame: "base_footprint"
+
+    # Ordered chain of LaserScan filters
+    # 1) Clamp out-of-range values to NaN so downstream ignores them
+    filter1:
+      name: range_clip
+      type: laser_filters/LaserScanRangeFilter
+      params:
+        use_message_range_limits: false
+        lower_threshold: 0.10 # ignore < 10 cm
+        upper_threshold: 9.0 # set to >= your /scan.range_max
+        lower_replacement_value: NaN
+        upper_replacement_value: NaN
+
+    # 2) Remove isolated speckles between smooth neighbors
+    filter2:
+      name: speckle_filter
+      type: laser_filters/LaserScanSpeckleFilter
+      params:
+        filter_type: 0 # 0: neighbor range-diff
+        max_range: 9.0 # consider returns inside this
+        max_range_difference: 0.12 # drop if |r[i]-r[i±1]| > 12 cm
+        filter_window: 2 # need ≥2 neighbors to keep
+
+    # 3) Suppress shadow artifacts near grazing angles
+    filter3:
+      name: shadow_filter
+      type: laser_filters/ScanShadowsFilter
+      params:
+        min_angle: 10.0 # degrees
+        max_angle: 170.0 # degrees
+        neighbors: 20
+        window: 1

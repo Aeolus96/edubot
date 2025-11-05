@@ -41,13 +41,32 @@ def lds01_lidar():
     )
 
 
+# 2D LiDAR filter node - filters out bad points from LDS01 data
+def lds01_lidar_filter():
+    return Node(
+        package="laser_filters",
+        executable="scan_to_scan_filter_chain",
+        name="laser_scan_filter",
+        output="screen",
+        parameters=[
+            edubot_share_dir + "/config/scan_filter.yaml",
+        ],
+        remappings=[
+            ("scan", "/scan"),  # input raw scan
+            ("scan_filtered", "/scan_filtered"),  # output cleaned scan
+        ],
+        respawn=True,
+        respawn_delay=2.0,
+    )
+
+
 # USB camera node - usb_cam driver (https://github.com/ros-drivers/usb_cam)
 def usb_camera():
     return Node(
         package="usb_cam",
         executable="usb_cam_node_exe",
         name="usb_cam_node",
-        parameters=[edubot_share_dir + "/config/camera_params.yaml"],  # ONLY CHANGE THIS .yaml FOR CAMERA PARAMETERS
+        parameters=[edubot_share_dir + "/config/camera_params.yaml"],  # CHANGE ONLY THIS .yaml FOR CAMERA PARAMETERS
         output="screen",
         # Restart policy for robustness
         respawn=True,
@@ -124,6 +143,7 @@ def generate_launch_description():
     ld.add_action(edubot_bridge())
     ld.add_action(edubot_description())
     ld.add_action(lds01_lidar())
+    ld.add_action(lds01_lidar_filter())
     ld.add_action(usb_camera())
     ld.add_action(imu_node())
     ld.add_action(imu_filter())
