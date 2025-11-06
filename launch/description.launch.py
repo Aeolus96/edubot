@@ -27,6 +27,7 @@ def robot_state_publisher_node():
         parameters=[
             {"use_sim_time": False},
             {"robot_description": robot_description},
+            {"publish_frequency": 30.0},
         ],
     )
 
@@ -41,6 +42,7 @@ def joint_state_publisher_node():
         parameters=[
             {"use_sim_time": False},
             {"robot_description": robot_description},
+            {"rate": 30.0},
         ],
     )
 
