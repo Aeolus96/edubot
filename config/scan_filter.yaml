@@ -2,45 +2,26 @@ laser_scan_filter:
   ros__parameters:
     # Shadow filter to remove shadow artifacts near grazing angles
     filter1:
-      name: shadows
-      type: laser_filters/ScanShadowsFilter
-      params:
-        min_angle: 10.0
-        max_angle: 170.0
-        neighbors: 20
-        window: 1
-    filter2:
       name: dark_shadows
-      type: laser_filters/ScanIntensityFilter
+      type: laser_filters/LaserScanIntensityFilter
       params:
         lower_threshold: 100.0
         upper_threshold: 10000.0
         disp_histogram: 0
-    filter3:
-      name: speckle_filter
-      type: laser_filters/LaserScanSpeckleFilter
-      params:
-        filter_type: 1
-        max_range: 3.5
-        max_range_difference: 0.05
-        filter_window: 4
-    filter4:
+    filter2:
       name: range_clip
       type: laser_filters/LaserScanRangeFilter
       params:
         use_message_range_limits: false
-        lower_threshold: 0.20 # ignore < 10 cm
+        lower_threshold: 0.10 # ignore < 10 cm
         upper_threshold: 3.5 # set to >= your /scan.range_max
         lower_replacement_value: 0.0
         upper_replacement_value: 0.0
-    filter5:
-      name: box
-      type: laser_filters/LaserScanBoxFilter
+    filter3:
+      name: speckle_filter
+      type: laser_filters/LaserScanSpeckleFilter
       params:
-        box_frame: lidar_link
-        min_x: -0.3
-        max_x: 0.1
-        min_y: -0.3
-        max_y: 0.3
-        min_z: -0.1
-        max_z: 0.1
+        filter_type: 0
+        max_range: 3.5
+        max_range_difference: 0.1
+        filter_window: 2

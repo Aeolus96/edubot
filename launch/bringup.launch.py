@@ -145,8 +145,8 @@ def generate_launch_description():
     ld.add_action(lds01_lidar())
     ld.add_action(lds01_lidar_filter())
     ld.add_action(usb_camera())
-    ld.add_action(imu_node())
-    ld.add_action(imu_filter())
+    # ld.add_action(imu_node())
+    # ld.add_action(imu_filter())
     ld.add_action(ekf_odom())
     # Defer SLAM Toolbox startup to allow other nodes to initialize first
     ld.add_action(TimerAction(period=5.0, actions=[slam_toolbox()]))
