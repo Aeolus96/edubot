@@ -60,6 +60,32 @@ def lds01_lidar_filter():
     )
 
 
+# SICK TiM561 2D LiDAR node
+def sick_tim561_lidar():
+    sick_scan_xd_share_dir = get_package_share_directory("sick_scan_xd")
+    launch_file_path = os.path.join(sick_scan_xd_share_dir, "launch", "sick_tim_5xx.launch")
+    return Node(
+        package="sick_scan_xd",
+        executable="sick_generic_caller",
+        output="screen",
+        arguments=[
+            launch_file_path,
+            "hostname:=192.168.71.71",
+            "cloud_topic:=scan_cloud",
+            "laserscan_topic:=scan",
+            "frame_id:=lidar_link",
+            "nodename:=sick_tim561_lidar",
+            "tf_publish_rate:=0.0",
+        ],
+        remappings=[
+            ("imu", "/sick_tim561_lidar/imu_placeholder"),  # Placeholder remap to avoid conflicts
+        ],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=10.0,
+    )
+
+
 # USB camera node - usb_cam driver (https://github.com/ros-drivers/usb_cam)
 def usb_camera():
     return Node(
@@ -142,8 +168,9 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(edubot_bridge())
     ld.add_action(edubot_description())
-    ld.add_action(lds01_lidar())
-    ld.add_action(lds01_lidar_filter())
+    # ld.add_action(lds01_lidar())
+    # ld.add_action(lds01_lidar_filter())
+    ld.add_action(sick_tim561_lidar())
     ld.add_action(usb_camera())
     # ld.add_action(imu_node())
     # ld.add_action(imu_filter())
