@@ -83,7 +83,7 @@ def generate_launch_description():
 
     declare_use_namespace_cmd = DeclareLaunchArgument(
         "use_namespace",
-        default_value="false",
+        default_value="False",
         description="Whether to apply a namespace to the navigation stack",
     )
 
@@ -99,7 +99,7 @@ def generate_launch_description():
 
     declare_use_sim_time_cmd = DeclareLaunchArgument(
         "use_sim_time",
-        default_value="false",
+        default_value="False",
         description="Use simulation (Gazebo) clock if true",
     )
 

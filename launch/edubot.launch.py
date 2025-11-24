@@ -7,7 +7,7 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -20,8 +20,8 @@ edubot_share_dir = get_package_share_directory("edubot")
 
 
 # Declare Launch arguments
-declare_use_sim_time = DeclareLaunchArgument("use_sim_time", default_value="false", description="Use simulation clock")
-declare_slam = DeclareLaunchArgument("slam", default_value="false", description="Launch SLAM Toolbox")
+declare_use_sim_time = DeclareLaunchArgument("use_sim_time", default_value="False", description="Use simulation clock")
+declare_slam = DeclareLaunchArgument("slam", default_value="False", description="Launch SLAM Toolbox")
 declare_map = DeclareLaunchArgument(
     "map",
     default_value=os.path.join(
