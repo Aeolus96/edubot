@@ -15,7 +15,7 @@ setup(
         # Install package.xml for ROS to find and setup dependencies - REQUIRED
         ("share/" + package_name, ["package.xml"]),
         # Install launch files - OPTIONAL but necessary if you have launch files
-        ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
+        ("share/" + package_name + "/launch", glob("launch/*launch.py")),
         # Install all other files such as URDF, meshes, and config files - OPTIONAL but necessary if you have these files
         ("share/" + package_name + "/urdf/", glob("urdf/*")),
         ("share/" + package_name + "/meshes/", glob("meshes/*")),

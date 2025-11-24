@@ -7,14 +7,34 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
+from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition, UnlessCondition
 
 from launch import LaunchDescription
 
 # Path to package share directory
 edubot_share_dir = get_package_share_directory("edubot")
+
+
+# Declare Launch arguments
+declare_use_sim_time = DeclareLaunchArgument("use_sim_time", default_value="false", description="Use simulation clock")
+declare_slam = DeclareLaunchArgument("slam", default_value="false", description="Launch SLAM Toolbox")
+declare_map = DeclareLaunchArgument(
+    "map",
+    default_value=os.path.join(
+        edubot_share_dir,
+        "maps",
+        "m215a_saved_map.yaml",  ### CHANGE ONLY THIS .yaml FOR DEFAULT MAP
+    ),
+    description="Full path to map YAML file",
+)
+# Launch configuration variables to be use in nodes and launch files below
+use_sim_time = LaunchConfiguration("use_sim_time")
+slam = LaunchConfiguration("slam")
+map_file = LaunchConfiguration("map")
 
 
 # Serial bridge and wheel odometry node - handles PRIZM communication and publishes joint states and odometry
@@ -60,7 +80,7 @@ def lds01_lidar_filter():
     )
 
 
-# SICK TiM561 2D LiDAR node
+# SICK TiM561 2D LiDAR node - has inbuilt filtering and significant better performance than LDS01
 def sick_tim561_lidar():
     sick_scan_xd_share_dir = get_package_share_directory("sick_scan_xd")
     launch_file_path = os.path.join(sick_scan_xd_share_dir, "launch", "sick_tim_5xx.launch")
@@ -146,35 +166,80 @@ def ekf_odom():
     )
 
 
-# SLAM node - SLAM Toolbox for online(incremental mapping) asynchronous(multi-threaded) SLAM
-def slam_toolbox():
-    slam_toolbox_share_dir = get_package_share_directory("slam_toolbox")
+# # SLAM node - SLAM Toolbox for online(incremental mapping) asynchronous(multi-threaded) SLAM
+# def slam_toolbox():
+#     slam_toolbox_share_dir = get_package_share_directory("slam_toolbox")
+#     slam_toolbox_params_file = os.path.join(edubot_share_dir, "config", "slam_toolbox_online_async.yaml")
+#     return IncludeLaunchDescription(
+#         PythonLaunchDescriptionSource([os.path.join(slam_toolbox_share_dir, "launch", "online_async_launch.py")]),
+#         launch_arguments=[
+#             ("use_sim_time", use_sim_time),
+#             ("slam_params_file", slam_toolbox_params_file),
+#         ],
+#         condition=IfCondition(LaunchConfiguration("slam")),  # Only launch if 'slam' argument is true
+#     )
+
+
+# # Nav2 node - ROS2 navigation stack
+# def nav2():
+#     nav2_share_dir = get_package_share_directory("nav2_bringup")
+#     nav2_params_file = os.path.join(edubot_share_dir, "config", "nav2_params.yaml")
+#     return IncludeLaunchDescription(
+#         PythonLaunchDescriptionSource([os.path.join(nav2_share_dir, "launch", "bringup_launch.py")]),
+#         launch_arguments=[
+#             ("use_sim_time", use_sim_time),
+#             ("params_file", nav2_params_file),
+#             # ("use_composition", "true"),
+#             ("map_yaml_file", map_file),
+#         ],
+#         condition=UnlessCondition(LaunchConfiguration("slam")),  # Only launch if 'slam' argument is false
+#     )
+
+
+def nav2_bringup():
     return IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(slam_toolbox_share_dir, "launch", "online_async_launch.py")]),
-        launch_arguments={
-            "use_sim_time": "false",
-            "slam_params_file": os.path.join(edubot_share_dir, "config", "slam_toolbox_online_async.yaml"),
-        }.items(),
+        PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "nav2_bringup_launch.py")]),
+        launch_arguments=[
+            ("use_sim_time", use_sim_time),
+            ("map_yaml_file", map_file),
+            ("slam", slam),
+        ],
     )
 
 
 def generate_launch_description():
     """
-    Generate the launch description for bringing up the EduBot nodes.
+    Generate the launch description for starting up the EduBot nodes.
 
     Returns:
-        LaunchDescription containing all necessary nodes for the EduBot.
+        LaunchDescription containing all necessary nodes for the EduBot basic functionality.
     """
+
     ld = LaunchDescription()
+    # Declare launch arguments
+    ld.add_action(declare_use_sim_time)
+    ld.add_action(declare_slam)
+    ld.add_action(declare_map)
+
+    # Robot communication and description
     ld.add_action(edubot_bridge())
     ld.add_action(edubot_description())
-    # ld.add_action(lds01_lidar())
-    # ld.add_action(lds01_lidar_filter())
+
+    # Sensors
+    # ld.add_action(lds01_lidar()) # Old LiDAR model, replaced by SICK TiM561
+    # ld.add_action(lds01_lidar_filter()) # Old LiDAR model, replaced by SICK TiM561
     ld.add_action(sick_tim561_lidar())
     ld.add_action(usb_camera())
     # ld.add_action(imu_node())
     # ld.add_action(imu_filter())
     ld.add_action(ekf_odom())
+
+    # SLAM and Navigation
     # Defer SLAM Toolbox startup to allow other nodes to initialize first
-    ld.add_action(TimerAction(period=5.0, actions=[slam_toolbox()]))
+    # ld.add_action(TimerAction(period=5.0, actions=[slam_toolbox()]))
+    # ld.add_action(TimerAction(period=7.0, actions=[nav2()]))
+
+    # Nav2 bringup
+    ld.add_action(nav2_bringup())
+
     return ld
