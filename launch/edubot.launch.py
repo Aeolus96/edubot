@@ -180,7 +180,7 @@ def nav2_bringup():
         PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "nav2_bringup_launch.py")]),
         launch_arguments=[
             ("use_sim_time", use_sim_time),
-            ("map_yaml_file", map_file),
+            ("map", map_file),
             ("slam", slam),
         ],
     )
