@@ -144,7 +144,7 @@ def generate_launch_description():
                 output="screen",
             ),
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(os.path.join(launch_dir, "slam_launch.py")),
+                PythonLaunchDescriptionSource(os.path.join(launch_dir, "nav2_slam_launch.py")),
                 condition=IfCondition(PythonExpression([slam, " and ", use_localization])),
                 launch_arguments={
                     "namespace": namespace,
@@ -155,7 +155,7 @@ def generate_launch_description():
                 }.items(),
             ),
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(os.path.join(launch_dir, "localization_launch.py")),
+                PythonLaunchDescriptionSource(os.path.join(launch_dir, "nav2_localization_launch.py")),
                 condition=IfCondition(PythonExpression(["not ", slam, " and ", use_localization])),
                 launch_arguments={
                     "namespace": namespace,
@@ -169,7 +169,7 @@ def generate_launch_description():
                 }.items(),
             ),
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(os.path.join(launch_dir, "navigation_launch.py")),
+                PythonLaunchDescriptionSource(os.path.join(launch_dir, "nav2_navigation_launch.py")),
                 launch_arguments={
                     "namespace": namespace,
                     "use_sim_time": use_sim_time,
