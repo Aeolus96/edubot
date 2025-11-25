@@ -105,6 +105,7 @@ def sick_tim561_lidar():
             "frame_id:=lidar_link",
             "nodename:=sick_tim561_lidar",
             "tf_publish_rate:=0.0",
+            "range_min:=0.1",
         ],
         remappings=[
             ("imu", "/sick_tim561_lidar/imu_placeholder"),  # Placeholder remap to avoid conflicts
