@@ -20,6 +20,7 @@ setup(
         ("share/" + package_name + "/urdf/", glob("urdf/*")),
         ("share/" + package_name + "/meshes/", glob("meshes/*")),
         ("share/" + package_name + "/config/", glob("config/*")),
+        ("share/" + package_name + "/maps/", glob("maps/*")),
     ],
     # Python dependencies for this package, setuptools REQUIRED
     install_requires=["setuptools"],
