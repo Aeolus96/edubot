@@ -446,15 +446,26 @@ def add_multiple_cameras():
         usb_path, devs = cameras[cam_num - 1]
         devpath = run_command(["udevadm", "info", "--query=path", "--name", devs[0]]).strip()
 
-        # Extract hub sub-port pattern
-        match = re.search(r"(1-\d+\.\d+)", devpath)
-        if not match:
-            print(f"Could not parse hub port from {devpath}; skipping.")
+        # Extract port pattern - handles both direct USB and hub connections
+        # Direct USB: /1-4/1-4:1.0 → pattern */1-4/*
+        # Hub port: /1-11.2/1-11.2:1.0 → pattern */1-*/1-*.2/*
+        hub_match = re.search(r"(1-\d+\.\d+)", devpath)
+        direct_match = re.search(r"/(1-\d+)(?:/|:)", devpath)
+        
+        if hub_match:
+            # Hub sub-port connection
+            subport_pattern = hub_match.group(1)
+            port_num = subport_pattern.split(".")[-1]
+            wildcard_pattern = f"*/1-*/1-*.{port_num}/*"
+            print(f"Detected hub sub-port: {subport_pattern}")
+        elif direct_match:
+            # Direct USB connection
+            usb_port = direct_match.group(1)
+            wildcard_pattern = f"*/{usb_port}/*"
+            print(f"Detected direct USB port: {usb_port}")
+        else:
+            print(f"Could not parse USB port from {devpath}; skipping.")
             continue
-
-        subport_pattern = match.group(1)
-        port_num = subport_pattern.split(".")[-1]
-        wildcard_pattern = f"*/1-*/1-*.{port_num}/*"
 
         # Ask for symlink name
         link_name = ""
