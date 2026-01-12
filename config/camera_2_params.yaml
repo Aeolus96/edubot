@@ -1,6 +1,6 @@
 /**:
   ros__parameters:
-    video_device: "/dev/edubot_camera" # This file is specific to Genius F100 USB camera
+    video_device: "/dev/edubot_camera_2" # This file is specific to Genius F100 USB camera
     framerate: 30.0
     io_method: "mmap"
     frame_id: "camera_link"

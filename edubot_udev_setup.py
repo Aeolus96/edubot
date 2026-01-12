@@ -8,13 +8,13 @@ Interactive udev rule helper (Ubuntu 24.04, ROS 2 Jazzy).
 - Splits UVC capture vs metadata nodes using ENV{ID_V4L_CAPABILITIES} and ATTR{index}.
 """
 
-import os
-import sys
-import re
 import glob
-import time
+import os
+import re
 import subprocess
-from typing import Optional, Tuple, List, Dict
+import sys
+import time
+from typing import Dict, List, Optional, Tuple
 
 RULES_FILE = "/etc/udev/rules.d/99-edubot.rules"
 
@@ -352,17 +352,169 @@ def add_one_device():
         append_rule(r)
 
 
+def build_camera_rules_by_devpath(link_base: str, devpath_pattern: str, perms: str) -> List[str]:
+    """
+    Build two rules for V4L2 cameras using DEVPATH matching (for identical cameras on USB hub).
+    - capture: DEVPATH matches pattern and index==0 -> SYMLINK+=link_base
+    - metadata: DEVPATH matches pattern and index==1 -> SYMLINK+=link_base + '_meta'
+    """
+    common = [
+        'ACTION=="add"',
+        'SUBSYSTEM=="video4linux"',
+        'KERNEL=="video[0-9]*"',
+        f'DEVPATH=="{devpath_pattern}"',
+    ]
+
+    def assigns(name: str) -> List[str]:
+        a = [f'SYMLINK+="{name}"']
+        if perms == "safe":
+            a += ['MODE="0660"', 'GROUP="video"', 'TAG+="uaccess"']
+        else:
+            a += ['MODE="0666"']
+        return a
+
+    # Capture rule (index 0)
+    capture_rule = ", ".join(common + ['ATTR{index}=="0"'] + assigns(link_base))
+
+    # Metadata rule (index 1)
+    metadata_rule = ", ".join(common + ['ATTR{index}=="1"'] + assigns(link_base + "_meta"))
+
+    return [capture_rule, metadata_rule]
+
+
+def add_multiple_cameras():
+    """Auto-discover video devices and set up multiple cameras with DEVPATH-based rules."""
+    print("\n=== Multi-Camera Setup (DEVPATH-based) ===")
+    print("This will auto-detect all cameras and create persistent symlinks.")
+    print("Even if cameras swap device nodes, each symlink stays with its physical port.\n")
+
+    # Discover all video devices
+    video_devices = sorted(glob.glob("/dev/video[0-9]*"))
+    if not video_devices:
+        print("No video devices found.")
+        return
+
+    # Group by physical device (same DEVPATH base = same camera)
+    device_map: Dict[str, List[str]] = {}
+    for dev in video_devices:
+        try:
+            devpath = run_command(["udevadm", "info", "--query=path", "--name", dev]).strip()
+            # Extract the USB device path (everything up to the last /video4linux/)
+            usb_path = re.sub(r"/video4linux/.*$", "", devpath)
+            if usb_path not in device_map:
+                device_map[usb_path] = []
+            device_map[usb_path].append(dev)
+        except Exception:
+            pass
+
+    if not device_map:
+        print("Could not determine device paths.")
+        return
+
+    cameras = list(device_map.items())
+    print(f"Found {len(cameras)} camera(s):\n")
+
+    for idx, (usb_path, devs) in enumerate(cameras, 1):
+        print(f"{idx}) {', '.join(devs)}")
+        print(f"   Path: {usb_path}\n")
+
+    # Ask which ones to configure
+    selections = []
+    while True:
+        try:
+            print(f"\nEnter camera number(s) to configure:")
+            print(f"  • Single camera:   1")
+            print(f"  • Multiple cameras: 1 2")
+            print(f"  • Range:           1 2 3")
+            print(f"(Valid range: 1-{len(cameras)})\n")
+            sel = input("Enter camera numbers: ").strip()
+            if not sel:
+                print("Please select at least one camera.")
+                continue
+            selections = [int(x) for x in sel.split()]
+            if all(1 <= s <= len(cameras) for s in selections):
+                break
+            print(f"Invalid: please enter numbers between 1 and {len(cameras)}.")
+        except ValueError:
+            print("Invalid input: please enter space-separated numbers (e.g., 1 2).")
+
+    # Get permissions style once for all
+    perms = choose_perms_style()
+
+    # Configure each selected camera
+    for cam_num in selections:
+        usb_path, devs = cameras[cam_num - 1]
+        devpath = run_command(["udevadm", "info", "--query=path", "--name", devs[0]]).strip()
+
+        # Extract hub sub-port pattern
+        match = re.search(r"(1-\d+\.\d+)", devpath)
+        if not match:
+            print(f"Could not parse hub port from {devpath}; skipping.")
+            continue
+
+        subport_pattern = match.group(1)
+        port_num = subport_pattern.split(".")[-1]
+        wildcard_pattern = f"*/1-*/1-*.{port_num}/*"
+
+        # Ask for symlink name
+        link_name = ""
+        while not link_name:
+            link_name = input(f"Enter symlink name for {', '.join(devs)} (e.g., camera_1): ").strip()
+        link_base = make_dev_symlink(link_name)
+
+        # Generate and append rules
+        rules = build_camera_rules_by_devpath(link_base, wildcard_pattern, perms)
+        print(f"\n[Rules for {link_name}]:")
+        for r in rules:
+            print(r)
+            append_rule(r)
+
+    print("\n[✓] All camera rules added.")
+
+
+def clear_rules_file():
+    """Clear the entire udev rules file."""
+    if not os.path.exists(RULES_FILE):
+        print(f"Rules file {RULES_FILE} does not exist.")
+        return
+
+    print(f"\n⚠️  WARNING: This will DELETE all rules in {RULES_FILE}")
+    confirm = input("Are you sure you want to clear all rules? (yes/no): ").strip().lower()
+    if confirm == "yes":
+        try:
+            os.remove(RULES_FILE)
+            print(f"[✓] Rules file cleared: {RULES_FILE}")
+            print("\nApply changes:")
+            print("  sudo udevadm control --reload")
+            print("  sudo udevadm trigger")
+        except Exception as e:
+            print(f"Error: could not remove file: {e}")
+    else:
+        print("Cancelled.")
+
+
 def main():
     require_root_via_sudo()
 
     print("Edubot udev setup — create /dev symlinks for serial devices and USB cameras.\n")
     print("Cameras get two symlinks by default: edubot_<name> (capture) and edubot_<name>_meta (metadata).\n")
 
-    while True:
-        add_one_device()
-        again = input("\nAdd another device? (y/n): ").strip().lower()
-        if again not in ("y", "yes"):
-            break
+    print("Setup mode:")
+    print(" 1) Add devices one-by-one (classic mode)")
+    print(" 2) Add multiple cameras at once (auto-detect, DEVPATH-based)")
+    print(" 3) Clear all udev rules (reset)")
+    mode = input("Select 1/2/3 (default 1): ").strip() or "1"
+
+    if mode == "2":
+        add_multiple_cameras()
+    elif mode == "3":
+        clear_rules_file()
+    else:
+        while True:
+            add_one_device()
+            again = input("\nAdd another device? (y/n): ").strip().lower()
+            if again not in ("y", "yes"):
+                break
 
     print("\n=== Copy-paste these to apply rules now ===")
     print("sudo udevadm control --reload")

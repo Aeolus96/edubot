@@ -18,6 +18,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -30,6 +31,7 @@ edubot_share_dir = get_package_share_directory("edubot")
 
 # Declare Launch arguments
 declare_use_sim_time = DeclareLaunchArgument("use_sim_time", default_value="False", description="Use simulation clock")
+declare_nav2 = DeclareLaunchArgument("nav2", default_value="False", description="Launch Nav2 stack")
 declare_slam = DeclareLaunchArgument("slam", default_value="False", description="Launch SLAM Toolbox")
 declare_map = DeclareLaunchArgument(
     "map",
@@ -44,6 +46,7 @@ declare_map = DeclareLaunchArgument(
 use_sim_time = LaunchConfiguration("use_sim_time")
 slam = LaunchConfiguration("slam")
 map_file = LaunchConfiguration("map")
+use_nav2 = LaunchConfiguration("nav2")
 
 
 # Serial bridge and wheel odometry node - handles PRIZM communication and publishes joint states and odometry
@@ -117,12 +120,23 @@ def sick_tim561_lidar():
 
 
 # USB camera node - usb_cam driver (https://github.com/ros-drivers/usb_cam)
-def usb_camera():
+def usb_camera(
+    param_path: str = "/config/camera_params.yaml",
+    camera_name: str = "camera",
+):
+    """
+    Launch a USB camera node with independent parameters and topic namespace.
+
+    Args:
+        param_path: Path to camera parameter YAML file (relative to edubot share dir)
+        camera_name: Unique node and namespace name for this camera (e.g., "camera_1", "camera_2")
+    """
     return Node(
         package="usb_cam",
         executable="usb_cam_node_exe",
-        name="usb_cam_node",
-        parameters=[edubot_share_dir + "/config/camera_params.yaml"],  # CHANGE ONLY THIS .yaml FOR CAMERA PARAMETERS
+        name=camera_name,
+        namespace=camera_name,
+        parameters=[edubot_share_dir + param_path],
         output="screen",
         # Restart policy for robustness
         respawn=True,
@@ -179,6 +193,7 @@ def ekf_odom():
 def nav2_bringup():
     return IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "nav2_bringup_launch.py")]),
+        condition=IfCondition(use_nav2),  # Only launch nav2 if launch argument "nav2" is True
         launch_arguments=[
             ("use_sim_time", use_sim_time),
             ("map", map_file),
@@ -200,6 +215,7 @@ def generate_launch_description():
     ld.add_action(declare_use_sim_time)
     ld.add_action(declare_slam)
     ld.add_action(declare_map)
+    ld.add_action(declare_nav2)
 
     # Robot communication bridge and description
     ld.add_action(edubot_bridge())
@@ -209,12 +225,13 @@ def generate_launch_description():
     # ld.add_action(lds01_lidar()) #* Old LiDAR model, replaced by SICK TiM561
     # ld.add_action(lds01_lidar_filter()) #* Old LiDAR model, replaced by SICK TiM561
     ld.add_action(sick_tim561_lidar())
-    ld.add_action(usb_camera())
+    ld.add_action(usb_camera(param_path="/config/camera_1_params.yaml", camera_name="camera_1"))
+    ld.add_action(usb_camera(param_path="/config/camera_2_params.yaml", camera_name="camera_2"))
     # ld.add_action(imu_node()) #* Not used currently
     # ld.add_action(imu_filter()) #* Not used currently
     ld.add_action(ekf_odom())
 
     # Nav2 bringup
-    ld.add_action(nav2_bringup())
+    # ld.add_action(nav2_bringup()) #* Not used currently
 
     return ld
