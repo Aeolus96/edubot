@@ -42,11 +42,16 @@ declare_map = DeclareLaunchArgument(
     ),
     description="Full path to map YAML file",
 )
+declare_joystick = DeclareLaunchArgument("joystick", default_value="False", description="Launch joystick teleop nodes")
+declare_keyboard = DeclareLaunchArgument("keyboard", default_value="False", description="Launch keyboard teleop nodes")
+
 # Launch configuration variables to be use in nodes and launch files below
 use_sim_time = LaunchConfiguration("use_sim_time")
 slam = LaunchConfiguration("slam")
 map_file = LaunchConfiguration("map")
 use_nav2 = LaunchConfiguration("nav2")
+use_joystick = LaunchConfiguration("joystick")
+use_keyboard = LaunchConfiguration("keyboard")
 
 
 # Serial bridge and wheel odometry node - handles PRIZM communication and publishes joint states and odometry
@@ -202,6 +207,72 @@ def nav2_bringup():
     )
 
 
+def device_exists(device_name):
+    """
+    Check if a device exists in /dev/
+
+    Args:
+        device_name (str): Name of the device symlink (e.g., 'camera_front', 'lidar')
+        Can include '/dev/' prefix or not
+
+    Returns:
+        bool: True if device exists, False otherwise
+    """
+    # Remove '/dev/' prefix if provided
+    if device_name.startswith("/dev/"):
+        device_path = device_name
+    else:
+        device_path = f"/dev/{device_name}"
+
+    # Check if the path exists (works for both symlinks and regular devices)
+    return os.path.exists(device_path)
+
+
+def joy_node():
+    return Node(
+        package="joy",
+        executable="joy_node",
+        name="joy_node",
+        output="screen",
+        parameters=[edubot_share_dir + "/config/teleop.yaml"],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=10.0,
+    )
+
+
+def teleop_node():
+    return Node(
+        package="teleop_twist_joy",
+        executable="teleop_node",
+        name="teleop_twist_joy_node",
+        output="screen",
+        parameters=[edubot_share_dir + "/config/teleop.yaml"],
+        remappings=[
+            ("cmd_vel", "/cmd_vel_teleop"),  # Nav2 assisted teleop topic
+        ],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=10.0,
+    )
+
+
+def keyboard_teleop_node():
+    return Node(
+        package="teleop_twist_keyboard",
+        executable="teleop_twist_keyboard",
+        name="teleop_twist_keyboard_node",
+        output="screen",
+        parameters=[edubot_share_dir + "/config/teleop.yaml"],
+        remappings=[
+            ("cmd_vel", "/cmd_vel_teleop"),  # Nav2 assisted teleop topic
+        ],
+        # Restart policy for robustness
+        respawn=True,
+        respawn_delay=10.0,
+    )
+
+
 def generate_launch_description():
     """
     Generate the launch description for starting up the EduBot nodes.
@@ -225,13 +296,22 @@ def generate_launch_description():
     # ld.add_action(lds01_lidar()) #* Old LiDAR model, replaced by SICK TiM561
     # ld.add_action(lds01_lidar_filter()) #* Old LiDAR model, replaced by SICK TiM561
     ld.add_action(sick_tim561_lidar())
-    ld.add_action(usb_camera(param_path="/config/camera_1_params.yaml", camera_name="camera_1"))
-    ld.add_action(usb_camera(param_path="/config/camera_2_params.yaml", camera_name="camera_2"))
+    if device_exists("edubot_camera_1"):
+        ld.add_action(usb_camera(param_path="/config/camera_1_params.yaml", camera_name="camera_1"))
+    if device_exists("edubot_camera_2"):
+        ld.add_action(usb_camera(param_path="/config/camera_2_params.yaml", camera_name="camera_2"))
     # ld.add_action(imu_node()) #* Not used currently
     # ld.add_action(imu_filter()) #* Not used currently
     ld.add_action(ekf_odom())
 
     # Nav2 bringup
-    # ld.add_action(nav2_bringup()) #* Not used currently
+    ld.add_action(nav2_bringup())  #* Not used currently
+
+    # Teleop Joystick/Keyboard node - for manual control
+    if use_joystick == "True":
+        ld.add_action(joy_node())
+        ld.add_action(teleop_node())
+    elif use_keyboard == "True":
+        ld.add_action(keyboard_teleop_node())
 
     return ld
