@@ -30,7 +30,7 @@ slam_toolbox:
     resolution: 0.01
     restamp_tf: true
     min_laser_range: 0.0 #for rastering images
-    max_laser_range: 3.5 #for rastering images
+    max_laser_range: 10.0 #for rastering images
     minimum_time_interval: 0.5
     transform_timeout: 0.2
     tf_buffer_duration: 10.0

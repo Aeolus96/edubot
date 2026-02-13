@@ -42,16 +42,12 @@ declare_map = DeclareLaunchArgument(
     ),
     description="Full path to map YAML file",
 )
-declare_joystick = DeclareLaunchArgument("joystick", default_value="False", description="Launch joystick teleop nodes")
-declare_keyboard = DeclareLaunchArgument("keyboard", default_value="False", description="Launch keyboard teleop nodes")
 
 # Launch configuration variables to be use in nodes and launch files below
 use_sim_time = LaunchConfiguration("use_sim_time")
 slam = LaunchConfiguration("slam")
 map_file = LaunchConfiguration("map")
 use_nav2 = LaunchConfiguration("nav2")
-use_joystick = LaunchConfiguration("joystick")
-use_keyboard = LaunchConfiguration("keyboard")
 
 
 # Serial bridge and wheel odometry node - handles PRIZM communication and publishes joint states and odometry
@@ -305,13 +301,11 @@ def generate_launch_description():
     ld.add_action(ekf_odom())
 
     # Nav2 bringup
-    ld.add_action(nav2_bringup())  #* Not used currently
+    ld.add_action(nav2_bringup())  # * Not used currently
 
     # Teleop Joystick/Keyboard node - for manual control
-    if use_joystick == "True":
-        ld.add_action(joy_node())
-        ld.add_action(teleop_node())
-    elif use_keyboard == "True":
-        ld.add_action(keyboard_teleop_node())
+    ld.add_action(joy_node())
+    ld.add_action(teleop_node())
+    # ld.add_action(keyboard_teleop_node())
 
     return ld
