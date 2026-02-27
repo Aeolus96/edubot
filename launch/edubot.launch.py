@@ -38,7 +38,7 @@ declare_map = DeclareLaunchArgument(
     default_value=os.path.join(
         edubot_share_dir,
         "maps",
-        "m215a_saved_map.yaml",  ###! CHANGE ONLY THIS .yaml FOR DEFAULT MAP
+        "J234_maze.yaml",  ###! CHANGE ONLY THIS .yaml FOR DEFAULT MAP
     ),
     description="Full path to map YAML file",
 )
@@ -300,12 +300,12 @@ def generate_launch_description():
     # ld.add_action(imu_filter()) #* Not used currently
     ld.add_action(ekf_odom())
 
-    # Nav2 bringup
-    ld.add_action(nav2_bringup())  # * Not used currently
+    # Nav2 stack with SLAM or localization based on launch arguments
+    ld.add_action(nav2_bringup())
 
-    # Teleop Joystick/Keyboard node - for manual control
-    ld.add_action(joy_node())
-    ld.add_action(teleop_node())
+    # Teleop Joystick/Keyboard node - for manual control from host computer
+    # ld.add_action(joy_node())
+    # ld.add_action(teleop_node())
     # ld.add_action(keyboard_teleop_node())
 
     return ld
