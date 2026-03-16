@@ -168,18 +168,18 @@ def generate_launch_description():
                     "container_name": "nav2_container",
                 }.items(),
             ),
-            # IncludeLaunchDescription(
-            #     PythonLaunchDescriptionSource(os.path.join(launch_dir, "nav2_navigation_launch.py")),
-            #     launch_arguments={
-            #         "namespace": namespace,
-            #         "use_sim_time": use_sim_time,
-            #         "autostart": autostart,
-            #         "params_file": params_file,
-            #         "use_composition": use_composition,
-            #         "use_respawn": use_respawn,
-            #         "container_name": "nav2_container",
-            #     }.items(),
-            # ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(os.path.join(launch_dir, "nav2_navigation_launch.py")),
+                launch_arguments={
+                    "namespace": namespace,
+                    "use_sim_time": use_sim_time,
+                    "autostart": autostart,
+                    "params_file": params_file,
+                    "use_composition": use_composition,
+                    "use_respawn": use_respawn,
+                    "container_name": "nav2_container",
+                }.items(),
+            ),
         ]
     )
 
