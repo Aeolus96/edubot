@@ -7,20 +7,21 @@
 - nav2_bringup_launch.py: Launches the Nav2 stack with SLAM or localization based on arguments.
 
 Usage:
-    ros2 launch edubot edubot.launch.py [slam:=True|False] [map:=/path/to/map.yaml] [use_sim_time:=True|False]
+    ros2 launch edubot edubot.launch.py [slam:=True|False] [map:=/path/to/map.yaml] [use_sim_time:=True|False] [localization_only:=True|False]
 Arguments:
     slam: Whether to launch SLAM Toolbox for mapping (default: False).
     map: Full path to the map YAML file for localization (default: edubot/maps/m215a_saved_map.yaml).
     use_sim_time: Whether to use simulation time (default: False).
+    localization_only: If True, disable Nav2 navigation/planning/collision avoidance (students write custom plugin) (default: False).
 """
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 from launch import LaunchDescription
@@ -42,12 +43,18 @@ declare_map = DeclareLaunchArgument(
     ),
     description="Full path to map YAML file",
 )
+declare_localization_only = DeclareLaunchArgument(
+    "localization_only",
+    default_value="False",
+    description="If True, disable Nav2 navigation/planning/collision avoidance (students write custom plugin)",
+)
 
 # Launch configuration variables to be use in nodes and launch files below
 use_sim_time = LaunchConfiguration("use_sim_time")
 slam = LaunchConfiguration("slam")
 map_file = LaunchConfiguration("map")
 use_nav2 = LaunchConfiguration("nav2")
+localization_only = LaunchConfiguration("localization_only")
 
 
 # Serial bridge and wheel odometry node - handles PRIZM communication and publishes joint states and odometry
@@ -192,13 +199,35 @@ def ekf_odom():
 
 
 def nav2_bringup():
-    return IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "nav2_bringup_launch.py")]),
-        condition=IfCondition(use_nav2),  # Only launch nav2 if launch argument "nav2" is True
-        launch_arguments=[
-            ("use_sim_time", use_sim_time),
-            ("map", map_file),
-            ("slam", slam),
+    """
+    Launch Nav2 stack with conditional logic:
+    - nav2=False: Do not launch anything (default)
+    - nav2=True and localization_only=False: Full Nav2 stack (planning/collision avoidance)
+    - nav2=True and localization_only=True: Localization-only (students write custom navigation)
+    """
+    return GroupAction(
+        condition=IfCondition(use_nav2),
+        actions=[
+            # Localization-only: SLAM/localization without Nav2 planning/collision avoidance
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "no_nav2_bringup_launch.py")]),
+                condition=IfCondition(localization_only),
+                launch_arguments=[
+                    ("use_sim_time", use_sim_time),
+                    ("map", map_file),
+                    ("slam", slam),
+                ],
+            ),
+            # Full Nav2 stack: SLAM/localization + planning/collision avoidance
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([os.path.join(edubot_share_dir, "launch", "nav2_bringup_launch.py")]),
+                condition=IfCondition(PythonExpression(["not ", localization_only])),
+                launch_arguments=[
+                    ("use_sim_time", use_sim_time),
+                    ("map", map_file),
+                    ("slam", slam),
+                ],
+            ),
         ],
     )
 
@@ -283,6 +312,7 @@ def generate_launch_description():
     ld.add_action(declare_slam)
     ld.add_action(declare_map)
     ld.add_action(declare_nav2)
+    ld.add_action(declare_localization_only)
 
     # Robot communication bridge and description
     ld.add_action(edubot_bridge())
