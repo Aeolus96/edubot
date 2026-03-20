@@ -4,12 +4,12 @@
 EduBot is a ROS 2 package that provides robot description, drivers, and bringup for the EduBot platform. It includes:
 
 - Serial bridge to the PRIZM motor controller
-- Wheel odometry
-- IMU integration and Madgwick filter
-- USB camera support
-- 2D LiDAR driver
-- EKF-based odometry
-- SLAM Toolbox
+- Wheel odometry with encoder-based pose estimation
+- SICK TiM561 2D LiDAR driver
+- USB camera support (dual camera capable)
+- EKF-based odometry fusion (wheel odometry; IMU support is available but currently disabled)
+- Navigation2 stack with SLAM Toolbox support for mapping and navigation
+- URDF robot model and RViz visualization
 
 This README assumes you are using Ubuntu 24.04 and ROS 2 Jazzy.
 
@@ -123,26 +123,46 @@ sudo usermod -aG video $USER     # cameras
 
 From any workspace sourced shell run one of the provided launch files:
 
+### Start only core robot services (bridge, odometry, LiDAR, cameras, EKF) without navigation
+
 ```bash
-# Start entire robot's ROS 2 stack with default parameters
 ros2 launch edubot edubot.launch.py
+```
 
-# Start robot stack with SLAM enabled for online mapping
-ros2 launch edubot edubot.launch.py slam:=True
+### Start entire robot stack with Nav2 and SLAM enabled for online mapping
 
-# Start with pre-built map for localization only
-ros2 launch edubot edubot.launch.py slam:=False map:=/path/to/map.yaml
+```bash
+ros2 launch edubot edubot.launch.py nav2:=True slam:=True
+```
+
+### Start entire robot stack with Custom Navigation and slam enabled for online mapping
+
+```bash
+ros2 launch edubot edubot.launch.py nav2:=True slam:=True localization_only:=True
+```
+
+### Start robot stack with Nav2 and pre-built map for localization
+
+```bash
+ros2 launch edubot edubot.launch.py nav2:=True slam:=False map:=/path/to/map.yaml
+```
+
+### Start robot stack with Custom Navigation and pre-built map for localization only
+
+```bash
+ros2 launch edubot edubot.launch.py nav2:=True slam:=False localization_only:=True map:=/path/to/map.yaml
 ```
 
 ### Available launch files
 
-- `edubot.launch.py` — Main launch file; starts all robot subsystems (serial bridge, odometry, LiDAR, camera, EKF, and navigation)
+- `edubot.launch.py` — Main launch file; starts core robot subsystems (serial bridge, odometry, LiDAR, cameras if present, and EKF). Add `nav2:=True` to enable Navigation2 stack.
 - `bridge.launch.py` — Launches the serial bridge (`edubot_serial_bridge`) and wheel odometry node (`edubot_wheel_odom`)
 - `description.launch.py` — Launches `robot_state_publisher` and `joint_state_publisher` for robot URDF and transforms
-- `nav2_bringup_launch.py` — Navigation2 configuration with support for SLAM or localization modes
+- `nav2_bringup_launch.py` — Navigation2 stack configuration with support for SLAM or localization modes
 - `nav2_slam_launch.py` — Launches SLAM Toolbox for online mapping
 - `nav2_localization_launch.py` — Launches Nav2 localization against a pre-built map
 - `nav2_navigation_launch.py` — Launches Nav2 navigation stack
+- `no_nav2_bringup_launch.py` — Launches SLAM/localization only (without Nav2 planning and collision avoidance for custom navigation implementations)
 
 ## Nodes and topics
 
@@ -154,43 +174,47 @@ ros2 launch edubot edubot.launch.py slam:=False map:=/path/to/map.yaml
   
 - **`edubot_wheel_odom`** — Computes odometry from wheel encoders using differential drive kinematics
   - Subscribes: `/joint_states` (sensor_msgs/JointState)
-  - Publishes: `/wheel/odometry` (nav_msgs/Odometry), broadcasts `odom→base_link` TF transform
+  - Publishes: `/wheel/odometry` (nav_msgs/Odometry), broadcasts `odom→base_footprint` TF transform
   
-- **`usb_cam_node`** — Publishes video stream from USB camera
-  - Publishes: `/image_raw` (sensor_msgs/Image), `/camera_info` (sensor_msgs/CameraInfo)
+- **`usb_cam_node` (camera_1, camera_2)** — Publishes video stream from USB cameras
+  - Publishes: `/camera_{1,2}/image_raw` (sensor_msgs/Image), `/camera_{1,2}/camera_info` (sensor_msgs/CameraInfo)
+  - Cameras are launched dynamically only if `/dev/edubot_camera_1` and/or `/dev/edubot_camera_2` exist
 
-- **`sick_tim_5xx`** — 2D LiDAR driver (SICK TiM561)
+- **`sick_tim561_lidar`** — SICK TiM561 2D LiDAR driver (hardwired to IP 192.168.71.71)
   - Publishes: `/scan` (sensor_msgs/LaserScan)
 
 ### Supporting nodes (from dependencies)
 
-- **IMU publisher node** — From `imu_serial_to_ros_publisher` package (if installed)
+- **IMU publisher node** — From `imu_serial_to_ros_publisher` package (currently disabled; was for BMI088 6-axis IMU)
   - Publishes: `imu/data_raw` (sensor_msgs/Imu)
 
-- **`imu_filter_madgwick`** — Fuses raw IMU data using Madgwick filter
+- **`imu_filter_madgwick`** — Madgwick filter for fusing raw IMU data (currently disabled)
   - Subscribes: `imu/data_raw`
   - Publishes: `imu/data` (sensor_msgs/Imu)
 
-- **`ekf_node`** (robot_localization) — Fuses odometry from wheels, IMU, and other sensors
-  - Subscribes: `/wheel/odometry`, `imu/data`
-  - Publishes: `/odometry/filtered` (nav_msgs/Odometry), broadcasts `odom→base_link` TF
+- **`ekf_node`** (robot_localization) — Fuses odometry from wheels (IMU support available but currently disabled)
+  - Subscribes: `/wheel/odometry`
+  - Publishes: `/odometry/filtered` (nav_msgs/Odometry), broadcasts `odom→base_footprint` TF
 
 - **`robot_state_publisher`** — Publishes robot URDF and static transforms
   - Publishes: `/robot_description`, `/tf_static`
 
 - **`joint_state_publisher`** — Visualizes joint angles in RViz
 
-- **Nav2 nodes** — Navigation2 stack for autonomous navigation
+- **Nav2 nodes** — Navigation2 stack for autonomous navigation (optional; launch with `nav2:=True`)
   - Includes planners, controllers, and recovery behaviors
+  - Can run in full autonomous mode or localization-only mode (see launch examples)
 
 ## Configuration files
 
-- `config/camera_info.yaml` — Camera calibration data (intrinsics and distortion)
-- `config/camera_params.yaml` — USB camera driver parameters (resolution, frame rate, etc.)
+- `config/camera_1_params.yaml` — USB camera 1 driver parameters (resolution, frame rate, etc.)
+- `config/camera_2_params.yaml` — USB camera 2 driver parameters (if dual camera setup is used)
+- `config/camera_info.yaml` — Camera calibration data reference (intrinsics and distortion)
 - `config/nav2_params.yaml` — Navigation2 stack parameters (costmaps, planners, controllers)
-- `config/ekf.yaml` — EKF (Extended Kalman Filter) node configuration for sensor fusion
-- `config/imu_filter.yaml` — Madgwick IMU filter parameters
-- `config/scan_filter.yaml` — Laser scan filter configuration
+- `config/ekf.yaml` — EKF (Extended Kalman Filter) node configuration for sensor fusion on wheel odometry
+- `config/imu_filter.yaml` — Madgwick IMU filter parameters (currently disabled)
+- `config/scan_filter.yaml` — Laser scan filter configuration (used with LDS01; not needed for SICK TiM561)
+- `config/teleop.yaml` — Teleop joystick and keyboard parameters (launch files for these nodes are commented out)
 
 ## Robot description
 
@@ -200,9 +224,12 @@ ros2 launch edubot edubot.launch.py slam:=False map:=/path/to/map.yaml
 
 ## Maps
 
-- `maps/m215a_saved_map.yaml` — Navigation2 map metadata
-- `maps/m215a_saved_map.pgm` — Occupancy grid map image
-- `maps/m215a_serialized_map.posegraph` — SLAM Toolbox pose graph (for loop closure)
+Pre-built maps available in `maps/` directory:
+
+- `J234_maze.yaml` / `J234_maze.pgm` — Maze environment (default map loaded by launchers)
+- `J234.yaml` / `J234.pgm` — Alternate J234 environment map
+- `m215a_saved_map.yaml` / `m215a_saved_map.pgm` — M215A laboratory environment
+- `m215a_serialized_map.posegraph` — SLAM Toolbox pose graph for M215A map (for loop closure detection)
 
 ## License and contributing
 

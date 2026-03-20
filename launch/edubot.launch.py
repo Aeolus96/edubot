@@ -1,18 +1,24 @@
 """Launch file for starting everything up for the EduBot:
 - bridge.launch.py: Launches the serial bridge and wheel odometry.
 - description.launch.py: Launches the robot_state_publisher and joint_state_publisher.
-- sick_tim_5xx.launch: Launches the SICK TiM561 2D LiDAR driver node.
-- usb_cam_node: Launches the USB camera driver node.
-- ekf.launch.py: Launches the robot_localization EKF node for odometry fusion.
-- nav2_bringup_launch.py: Launches the Nav2 stack with SLAM or localization based on arguments.
+- sick_tim561_lidar(): Launches the SICK TiM561 2D LiDAR driver node (hardwired to 192.168.71.71).
+- usb_camera(): Launches USB camera driver nodes (if devices exist at /dev/edubot_camera_1 and/or /dev/edubot_camera_2).
+- ekf_odom(): Launches the robot_localization EKF node for odometry fusion (wheel odometry only; IMU currently disabled).
+- nav2_bringup(): Launches the Nav2 stack with SLAM or localization based on arguments (only if nav2:=True).
 
 Usage:
-    ros2 launch edubot edubot.launch.py [slam:=True|False] [map:=/path/to/map.yaml] [use_sim_time:=True|False] [localization_only:=True|False]
+    ros2 launch edubot edubot.launch.py [nav2:=True|False] [slam:=True|False] [localization_only:=True|False] [map:=/path/to/map.yaml] [use_sim_time:=True|False]
 Arguments:
-    slam: Whether to launch SLAM Toolbox for mapping (default: False).
-    map: Full path to the map YAML file for localization (default: edubot/maps/m215a_saved_map.yaml).
+    nav2: Whether to launch the Nav2 base stack (default: False).
+    slam: Whether to launch SLAM Toolbox for mapping (ignored if nav2:=False; default: False).
+    localization_only: If True, disable Nav2 navigation/planning/collision avoidance (Custom navigation; default: False).
+    map: Full path to the map YAML file for localization (default: J234_maze.yaml; ignored if nav2:=False or slam:=True).
     use_sim_time: Whether to use simulation time (default: False).
-    localization_only: If True, disable Nav2 navigation/planning/collision avoidance (students write custom plugin) (default: False).
+
+Disabled features (set to False or commented out):
+    - IMU publisher node and Madgwick filter (IMU hardware not currently used; ekf_odom runs on wheel odometry only)
+    - Joystick teleop, keyboard teleop, and joy_node (can be enabled if joystick hardware is available)
+    - LDS01 LiDAR driver and filter (replaced by SICK TiM561)
 """
 
 import os
